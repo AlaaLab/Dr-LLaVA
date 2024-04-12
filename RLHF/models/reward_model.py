@@ -673,18 +673,6 @@ class Rule_Based_Classifier:
         else:
             a_list.append(0)
         for i in range(1,len(order)):
-            #print(i)
-            #print([i-1,i])
-            #test= self.knowledge
-            '''
-            for key in test.keys():
-                print(order)
-                print(key)
-                print(test[key])
-                print([test[key][order[x]-1] for x in [i-1,i]] )
-                print('(((((((())))))))')
-            '''
-
             res = [[self.knowledge[key][order[x]-1] for x in [i-1,i]] for key in self.knowledge.keys()]
             #print(res)
             if outcome[i-1: i+1] in res:
@@ -693,10 +681,7 @@ class Rule_Based_Classifier:
             else:
                 a_list.append(0)
         #sadsv
-        print('pred:')
-        print(sentences)
-        print('groundtruth')
-        print(ref_answer)
+
         df = pd.DataFrame({
             'pred_category':outcome,
                           'ref_category':gt,
@@ -744,14 +729,12 @@ class Rule_Based_Classifier:
         pred_records = []
         ref_records = []
 
-        weak_alignment_bonus = []
-        strong_alignment_bonus = []
 
         length_bonus = []
         
 
         for _index, (pred, groundtruth) in enumerate(zip(sentences, ref_answer)):
-            length_diff=-abs(int((len(pred) - len(groundtruth))/80))
+            length_diff=-abs(int((len(pred) - len(groundtruth))/10))
             length_bonus.append(length_diff)
             groundtruth_answer = groundtruth
             # check if the answer is consistent with the question
@@ -893,10 +876,7 @@ class Rule_Based_Classifier:
         
         assert len(weak_correct_bonus) == len(strong_correct_bonus)==5, 'something is off'
         assert len(pred_records) == len(ref_records)==5, 'something is off'
-        print(f'pred_sentence: :{Pred_sentence}')
-        print(f'ref_sentences: {ref_answer}')
-        print(pred_records)
-        print(ref_records)
+
         
         assert ref_records in [[True, 'adequate', 'normal', 'no abnormality', 'normal'],
                               [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
