@@ -7,13 +7,13 @@
 
 <!-- # LLaVA-RLHF -->
 
-# LLaVA-RLHF: Aligning Large Multimodal Models with Factually Augmented RLHF
+# Dr-LLaVA: Visual Instruction Tuning with Symbolic Clinical Grounding
 
 </div>
 
 [[Project Page / Demo / Model Weights](https://llava-rlhf.github.io/)]
 
-LLaVA-RLHF represents the first open-source **RLHF-trained** large multimodal model for general-purpose visual and language understanding, achieving impressive visual reasoning and perception capabilities. For comprehensive details and insights, we kindly direct you to our [project page](https://llava-rlhf.github.io/) and [paper](https://arxiv.org/abs/2309.14525).
+Code space for Dr-LLaVA, a conversational VLM finetuned for analyzing medical images. It is developed with the aim to reduce the inconstency across conversation for medical diagnosis.
 
 ## Inference
 
