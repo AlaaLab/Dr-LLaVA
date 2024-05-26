@@ -14,18 +14,29 @@
 [[Project Page / Demo / Model Weights](https://llava-rlhf.github.io/)]
 
 Code space for Dr-LLaVA, a conversational VLM finetuned for analyzing medical images. It is developed with the aim to reduce the inconstency across conversation for medical diagnosis.
+We propose a new alignment algorithm that uses {\it symbolic representations} of clinical reasoning to ground VLMs in medical knowledge.
 
-## Inference
 
-To deploy or play with our model, please refer to [the demo directory](./demo).
+## Train 
+### Overview
 
-## Train
+Dr-LLaVA is trained on 4 A100 GPUs with 80GB memory. To train on fewer GPUs, you can reduce the `per_device_train_batch_size` and increase the `gradient_accumulation_steps` accordingly. Always keep the global batch size the same: `per_device_train_batch_size` x `gradient_accumulation_steps` x `num_gpus`.
 
-We propose a new alignment algorithm called **Factually Augmented RLHF (Fact-RLHF)** that augments the reward model with additional factual information such as image captions and ground-truth multi-choice options, which alleviates the reward hacking phenomenon in RLHF and further improves the performance.
+This process involves in three steps. 
+{\bf (i)} Construct the symbolic representations of clinical reasoning. 
+These representations are utilized to {\bf (i)} generate GPT-4-guided visual instruction tuning data at scale, simulating clinician-VLM conversations with demonstrations of clinical reasoning, and {\bf (ii)} create an automatic reward function that evaluates the clinical validity of VLM generations throughout clinician-VLM interactions.
 
-LLaVA-RLHF is trained on 8 A100 GPUs with 80GB memory. To train on fewer GPUs, you can reduce the `per_device_train_batch_size` and increase the `gradient_accumulation_steps` accordingly. Always keep the global batch size the same: `per_device_train_batch_size` x `gradient_accumulation_steps` x `num_gpus`.
 
-The SFT training pipeline is provided in [the SFT directory](./SFT), and the RLHF training pipeline is provided in [the RLHF directory](./RLHF).
+### Construct the symbolic representations of clinical reasoning
+
+<div align="center">
+    <img src="assets/images/Symbolic_representation.pdf" alt="Workflow" width="768px">
+</div>
+
+
+
+
+
 
 ## Examples
 
