@@ -32,7 +32,8 @@ These representations are utilized to {\bf (i)} generate GPT-4-guided visual ins
 <div align="center">
     <img src="assets/images/Symbolic_representation.png" alt="Workflow" width="368px">
 </div>
-
+Starting with labeled medical images, we use symbolic representations of clinical reasoning and GPT-4 to generate realistic conversations between a VLM and a clinician about the visual content of each image. 
+These multi-turn conversations are designed to reflect various styles of clinician-VLM interactions, with each conversation comprising a sequence of related questions that demonstrate accurate clinical reasoning. 
 
 
 
@@ -41,16 +42,18 @@ These representations are utilized to {\bf (i)} generate GPT-4-guided visual ins
 ## Examples
 
 <div align="center">
-    <img src="https://llava-rlhf.github.io/LLaVA_files/cmp_moto.jpg" alt="Example 1" width="768px">
+    <img src="assets/images/example.png" alt="Example" width="768px">
 </div>
 
-<div align="center">
-    <img src="https://llava-rlhf.github.io/LLaVA_files/cmp_airport.jpg" alt="Example 2" width="768px">
-</div>
+
 
 ## Citations
 
 If you find this repo useful for your research, please consider citing the paper
+
+Dr-LLAVA：
+```bibtex
+TBD
 
 LLaVA-RLHF:
 
