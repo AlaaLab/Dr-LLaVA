@@ -30,7 +30,7 @@ These representations are utilized to {\bf (i)} generate GPT-4-guided visual ins
 ### Construct the symbolic representations of clinical reasoning
 
 <div align="center">
-    <img src="assets/images/Symbolic_representation.pdf" alt="Workflow" width="768px">
+    <img src="assets/images/Symbolic_representation.png" alt="Workflow" width="768px">
 </div>
 
 
