@@ -443,35 +443,13 @@ class PPOTrainer(RLTrainer):
 
                     for i in range(1,num_QA):
                         prediction.append(text_responses[sub_batch_idx].split('USER: ')[i].split('ASSISTANT:')[-1])
-                    #print('Before sorting')
-                    #print('GT')
-                    #print(_answer)
-                    #print('pred')
-                    #print(prediction)
-
-                    
-                    #_order = [int(x.split('order ')[1]) for x in _answer]
-                    #prediction_pairs = list(zip(_order, prediction))
-                    #prediction_pairs.sort()
-                    #prediction = [_p for _, _p in prediction_pairs]
-
-                    print('After sorting')
-                    print('GT')
-                    print(sorted_answer)
-                    print('pred')
-                    print(prediction)
                     
                     sub_batch_reward_outputs = symbolic_rm.calculate_reward(
                             sentences = prediction, batch_size_confirmation = 1, 
                             return_dict=True, device = device_of_a,ref_answer = sorted_answer,  category=diagnosis[sub_batch_idx],
                             order = _order,
                         )
-                    """
-                    sub_batch_reward_outputs = symbolic_rm._forward(
-                            sentences = prediction, batch_size_confirmation = 1, 
-                            return_dict=True, device = device_of_a,ref_answer = sorted_answer,  category=diagnosis[sub_batch_idx],
-                        )
-                    """
+                    
                     symbolic_reward_outputs_list.append(sub_batch_reward_outputs)
 
                     
@@ -957,11 +935,8 @@ def smart_tokenizer_and_embedding_resize(
         model.get_input_embeddings().requires_grad_(True)
         model.get_output_embeddings().requires_grad_(True)
 def make_symbolic_rm():  
-    """
-    I will change this later to get the RF model
-    """
-    #model = load_rf_rm(category  = 'RF')
-    model = load_rf_rm(category  = 'RB')
+    
+    model = load_rf_rm()
     return model
 
 def make_models(

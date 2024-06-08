@@ -39,22 +39,15 @@ pip install datasets
 
 **Note:** please install Pytorch 2.0.1 following the guidelines [here](https://pytorch.org/get-started/previous-versions/#v201). We found that the flash-attention implementation in the newest Pytorch Stable (2.1.0) could lead to buggy results. The codebase is tested with `torch==2.0.1+cu118`.
 
-## 1. Built up the rule-based reward model 
+## 1. Curated the dataset and built up the rule-based reward model 
 ### Construct the symbolic representations of clinical reasoning
 Given an question for a medical image, there are only a few options that the image shall response, and also unknown, given the current information we cannot draw any conclusion. 
 Responses like this could be constructed into the categorical values which could be projected onto a logical graph tree. Just like the example below for blood maglicences. 
 <div align="center">
     <img src="assets/images/Symbolic_representation.png" alt="Workflow" width="368px">
 </div>
-A medical image with a known diagnosis that could be observed from the image, must have other morlogical features that the clinician identified first prior to confirm the diagnosis. 
-For example
-A medical image to diagnosis framework could be conputalized into:
-image -> Question about image description -> Question about image quality evaluation -> Question about morphogical feature 1 -> Question about the inference upon on the feature 1 -> ... -> Question about morphogical feature n -> Question about the inference upon on the feature n -> Diagnosis.
 
-Starting with labeled medical images, we use symbolic representations of clinical reasoning and GPT-4 to generate realistic conversations between a VLM and a clinician about the visual content of each image. 
-These multi-turn conversations are designed to reflect various styles of clinician-VLM interactions, with each conversation comprising a sequence of related questions that demonstrate accurate clinical reasoning. 
-
-#### Construct your own clinical logics for medical diagnosis
+### Construct your own clinical logics for medical diagnosis
 
 Here is an example of the clinical logics in addition to our private dataset. Taking X-ray image as an example. 
 
@@ -62,8 +55,22 @@ You can find more examples and details in the [Example_Clinical_Logics.md](asset
 
 After which you can agument the QAs with large language model available to increase the diversity of the QAs. 
 
+### Curated the dataset involve in multi round of conversation with clinical grounding. 
+A medical image with a known diagnosis that could be observed from the image, must have other morlogical features that the clinician identified first prior to confirm the diagnosis. 
+For example
+A medical image to diagnosis framework could be conputalized into:
+image -> Question about image description -> Question about image quality evaluation -> Question about morphogical feature 1 -> Question about the inference upon on the feature 1 -> ... -> Question about morphogical feature n -> Question about the inference upon on the feature n -> Diagnosis.
+
+Starting with labeled medical images, we use symbolic representations of clinical reasoning and GPT models to generate realistic conversations between a VLM and a clinician about the visual content of each image. 
+These multi-turn conversations are designed to reflect various styles of clinician-VLM interactions, with each conversation comprising a sequence of related questions that demonstrate accurate clinical reasoning. 
+
+
 
 ### Using clinical logics to construct the reward model
+To construct your own reward model, you can refer to the function `construct_reward_model()` in the file `RLHF/models/reward_model.py` at line 488. This function provides a template for building a reward model based on clinical logics. You can customize the logic and rules according to your specific requirements. 
+
+
+
 
 ### Supervised finetuning the LLaVA model
 

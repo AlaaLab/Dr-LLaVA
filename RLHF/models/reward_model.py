@@ -41,92 +41,15 @@ from llava.model import *
 import spacy
 import pickle  
 import numpy as np
-class RF_reward_model:
-    def __init__(self, models=None, entities_vectorizer=None,dependencies_vectorizer=None, doc2vec_model=None):
-        self.models = models
-        self.entities_vectorizer=entities_vectorizer
-        self.dependencies_vectorizer=dependencies_vectorizer
-        self.doc2vec_model=doc2vec_model
-        self.nlp=spacy.load("en_core_web_sm") 
+
+
+def load_reword_model():
     
-    def _forward(self, sentences, batch_size_confirmation, return_dict=True, device =None):
-        
-        # fake forward function
-        if int(len(sentences)/5) == batch_size_confirmation:
-            objects = ['>'.join(sentences[5*x:5*x+5]) for x in range(batch_size_confirmation)]
-        elif  int(len(sentences[0].split('. '))/5) == batch_size_confirmation:
-            sentences =  [(_a_sentence +'.').replace('..','.') for _a_sentence in sentences[0].split('. ')]
-            assert int(len(sentences)/5) == batch_size_confirmation, 'something is off'
-            objects = ['>'.join(sentences[5*x:5*x+5]) for x in range(batch_size_confirmation)]
-        else:
-            assert False, 'something is off'
-
-        
-
-        new_docs = [self.nlp('\n'.join(cohort)) for cohort in objects]  
-  
-        new_entities = [' '.join([ent.text for ent in doc.ents]) for doc in new_docs]  
-        new_dependencies = [' '.join([token.dep_ for token in doc]) for doc in new_docs]  
-  
-        new_X_entities = self.entities_vectorizer.transform(new_entities)  
-        new_X_dependencies = self.dependencies_vectorizer.transform(new_dependencies) 
-
-        new_semantic_similarity = [self.doc2vec_model.infer_vector([word for sentence in cohort for word in sentence.split()]) for cohort in objects]  
-  
-        new_X = np.hstack((new_semantic_similarity, new_X_entities.toarray(), new_X_dependencies.toarray()))  
-  
-        new_y_pred = self.models.predict(new_X)  
-
-        #print(new_y_pred)
-        new_y_pred = torch.tensor(new_y_pred)
-
-        new_y_pred = new_y_pred.to(device)
-        
-        new_y_pred = new_y_pred.expand(5)
-        # 
-        return RewardModelOutput(rewards=new_y_pred) if return_dict else (rewards,)
-
-        
-
-    def score(self, new_y_pred):
-        return new_y_pred
-
-
-
-
-def load_reword_model(category  = 'RF'):
-    if category=='RF':
-        # Load a pre-trained English model from spaCy  
-        nlp = spacy.load("en_core_web_sm") 
-        # Load the RandomForest model, vectorizers and the Doc2Vec model  
-        # Load the RandomForest model, vectorizers and the Doc2Vec model  
-        with open('/home/bear/Documents/harry/LLaVA-RLHF/RLHF/reward_model_dev/Random_forest/random_forest_model.pkl', 'rb') as f:  
-            clf_loaded = pickle.load(f)  
-        
-        with open('/home/bear/Documents/harry/LLaVA-RLHF/RLHF/reward_model_dev/Random_forest/entities_vectorizer.pkl', 'rb') as f:  
-            entities_vectorizer_loaded = pickle.load(f)  
-        
-        with open('/home/bear/Documents/harry/LLaVA-RLHF/RLHF/reward_model_dev/Random_forest/dependencies_vectorizer.pkl', 'rb') as f:  
-            dependencies_vectorizer_loaded = pickle.load(f)  
-        
-        with open('/home/bear/Documents/harry/LLaVA-RLHF/RLHF/reward_model_dev/Random_forest/doc2vec_model.pkl', 'rb') as f:  
-            doc2vec_model_loaded = pickle.load(f) 
-        
-        rf_model = RF_reward_model(models=clf_loaded,  entities_vectorizer=entities_vectorizer_loaded , dependencies_vectorizer=dependencies_vectorizer_loaded,
-        doc2vec_model=doc2vec_model_loaded)
-    elif category  == 'RB':
-        rf_model = Rule_Based_Classifier()
-    else:
-        NotImplementedError
+    rf_model = Rule_Based_Classifier()
+    
     
     return rf_model
     
-
-
-
-
-
-
 
 def unpack_dict(
     d: Dict, keys: Sequence[str], return_type: type = tuple
@@ -573,7 +496,7 @@ class Rule_Based_Classifier:
             return 'abnormal'
         elif exist_in_sentence(sentences, ['medical','illne']) and exist_in_sentence(sentences, ['display']):
             return 'abnormal'
-        elif exist_in_sentence(sentences, [' normal ', ' normal', 'no abnormali']): 
+        elif exist_in_sentence(sentences, [ ' normal', 'no abnormali']): 
             return 'normal'
         elif exist_in_sentence(sentences, ['inadequate', 'impossible', 'low-quality', 'low quality','unclear ','unsuitable','insufficient']):
             return 'inadequate'
@@ -621,6 +544,9 @@ class Rule_Based_Classifier:
     
     def calculate_reward(self, sentences, batch_size_confirmation, return_dict=True, device =None, ref_answer=None,
     category=None, order=None):
+        """
+        This function is used to calculate the accumulated reward for a series of sentences
+        """
     
         assert len(sentences) == len(order), 'the number of input and the number of orders are not equal'
         outcome = []
@@ -688,7 +614,7 @@ class Rule_Based_Classifier:
                           'correctness':c_list,
                           'alignness':a_list,
                           })
-        print(df)
+        
         
         if c_list[0]<=0:
             bonus = c_list[0]
@@ -700,234 +626,5 @@ class Rule_Based_Classifier:
         
         #bonus = reward_a + reward_c
         bonus = torch.tensor(np.array(bonus)).to(device).unsqueeze(0).unsqueeze(1)
-        
-        return RewardModelOutput(rewards=bonus) if return_dict else (None,)
-    
-    def _forward(self, sentences, batch_size_confirmation, return_dict=True, device =None, ref_answer=None,category=None):
-        
-        Pred_sentence = sentences
-        Ref_sentence  = ref_answer
-        if int(len(sentences)/5) == batch_size_confirmation:
-            objects = ['>'.join(sentences[5*x:5*x+5]) for x in range(batch_size_confirmation)]
-        elif  int(len(sentences[0].split('. '))/5) == batch_size_confirmation:
-            sentences =  [(_a_sentence +'.').replace('..','.') for _a_sentence in sentences[0].split('. ')]
-            assert int(len(sentences)/5) == batch_size_confirmation, 'something is off'
-            objects = ['>'.join(sentences[5*x:5*x+5]) for x in range(batch_size_confirmation)]
-        else:
-            assert False, 'something is off'
-
-        # split into 5 sentences
-        if ">" in sentences:
-            sentences = objects.split('>')
-        
-        assert len(sentences) == 5, 'the input is not 5 sentences'
-
-        weak_correct_bonus = []
-        
-
-        strong_correct_bonus = []
-        pred_records = []
-        ref_records = []
-
-
-        length_bonus = []
-        
-
-        for _index, (pred, groundtruth) in enumerate(zip(sentences, ref_answer)):
-            length_diff=-abs(int((len(pred) - len(groundtruth))/10))
-            length_bonus.append(length_diff)
-            groundtruth_answer = groundtruth
-            # check if the answer is consistent with the question
-            # use case statement 
-            # Low quality detection; Image overall analysis; Pathology abnormality analysis;Detailed abnormality reasoning; Diagnosis
-            if _index == 0:
-                
-                pred = self._check_quality(pred)
-                groundtruth = self._check_quality(groundtruth)
-                pred_records.append(pred)
-                ref_records.append(groundtruth)
-
-                if pred == groundtruth:
-                    weak_correct_bonus.append(1)
-                    strong_correct_bonus.append(1)
-                elif pred =='no match':
-                    weak_correct_bonus.append(-0.5)
-                    strong_correct_bonus.append(-0.5)
-                elif groundtruth == 'no match':
-                    assert False, 'gt sentence: {groundtruth_answer}'
-                else:
-                    weak_correct_bonus.append(0)
-                    strong_correct_bonus.append(0)
-                
-                
-            elif _index == 1:
-                pred = self._image_analysis(pred)
-                groundtruth = self._image_analysis(groundtruth)
-                pred_records.append(pred)
-                ref_records.append(groundtruth)
-
-                if pred == groundtruth:
-                    strong_correct_bonus.append(1)
-                    weak_correct_bonus.append(1)
-                elif pred == 'no match':
-                    weak_correct_bonus.append(-0.5)
-                    strong_correct_bonus.append(-0.5)
-                elif (pred == 'adequate') and (groundtruth in ['blood', 'clot']):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['blood', 'clot']) and (groundtruth == 'adequate'):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['blood', 'clot']) and (groundtruth in ['blood','clot']):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0.5)
-                else:
-                    assert False, f'A condition is not considered. pred: {pred}, groundtruth: {groundtruth} gt sentence: {groundtruth_answer}'
-            elif _index == 2:
-                pred = self._pathology_analysis(pred)
-                groundtruth = self._pathology_analysis(groundtruth)
-                pred_records.append(pred)
-                ref_records.append(groundtruth)
-
-                if pred == groundtruth:
-                    strong_correct_bonus.append(1)
-                    weak_correct_bonus.append(1)
-                elif pred == 'no match':
-                    weak_correct_bonus.append(-0.5)
-                    strong_correct_bonus.append(-0.5)
-                elif (pred == 'inadequate') and (groundtruth in ['normal', 'abnormal']):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['normal', 'abnormal']) and (groundtruth == 'inadequate'):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['normal', 'abnormal']) and (groundtruth in ['normal','abnormal']):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0.5)
-                else:
-                    assert False, f'A condition is not considered. pred: {pred}, groundtruth: {groundtruth} gt sentence: {groundtruth_answer}'
-
-            elif _index == 3:
-                pred = self._detailed_abnormality_reasoning(pred)
-                groundtruth = self._detailed_abnormality_reasoning(groundtruth)
-                pred_records.append(pred)
-                ref_records.append(groundtruth)
-
-                if pred == groundtruth:
-                    strong_correct_bonus.append(1)
-                    weak_correct_bonus.append(1)
-                elif pred == 'no match':
-                    weak_correct_bonus.append(-0.5)
-                    strong_correct_bonus.append(-0.5)
-                elif (pred == 'inadequate') and (groundtruth in ['plasma cells', 'myeloblasts', 'no abnormality']):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['plasma cells', 'myeloblasts']) and (groundtruth == 'inadequate'):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['plasma cells', 'myeloblasts']) and (groundtruth in ['no abnormality']):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['no abnormality',]) and (groundtruth in ['inadequate']):
-                    strong_correct_bonus.append(0.5)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['no abnormality', ]) and (groundtruth in ['plasma cells', 'myeloblasts']):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0)
-                elif (pred in ['plasma cells', 'myeloblasts',]) and (groundtruth in ['plasma cells', 'myeloblasts',]):
-                    strong_correct_bonus.append(0)
-                    weak_correct_bonus.append(0.5)
-                else:
-                    assert False, f'A condition is not considered. pred: {pred}, groundtruth: {groundtruth} gt sentence: {groundtruth_answer}'
-
-            elif _index == 4:
-                pred = self._diagnosis(pred)
-                groundtruth = self._diagnosis(groundtruth)
-                pred_records.append(pred)
-                ref_records.append(groundtruth)
-
-                if pred == groundtruth:
-                    strong_correct_bonus.append(1)
-                    weak_correct_bonus.append(1)
-                elif pred=='cancer' and groundtruth in ['MM', 'AML']:
-                    weak_correct_bonus.append(0.5)
-                    strong_correct_bonus.append(0.5)
-
-                elif pred == 'no match':
-                    weak_correct_bonus.append(-0.5)
-                    strong_correct_bonus.append(-0.5)
-                else:
-                    weak_correct_bonus.append(0)
-                    strong_correct_bonus.append(0)
-
-
-            else:
-                assert False, 'A condition is not considered'
-
-            # check the index of 0
-            # check the index of 1
-            
-
-            # give a binary list, if the list appear 0, then the reward for that index is 0
-            # if the list appear 1, then the reward for that index is the number of 1 before that index until 0 and itself
-            # for example, [0,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1] -> [0,1,2,0,1,2,3,0,0,1,2,3,4,5,6,7]
-            # this is the weak alignment bonus
-
-        
-        assert len(weak_correct_bonus) == len(strong_correct_bonus)==5, 'something is off'
-        assert len(pred_records) == len(ref_records)==5, 'something is off'
-
-        
-        assert ref_records in [[True, 'adequate', 'normal', 'no abnormality', 'normal'],
-                              [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
-                              [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
-                              [False, 'blood', 'inadequate','inadequate','inadequate'],
-                              [False, 'clot', 'inadequate','inadequate','inadequate']], print(f'something is off! the ref_records is {ref_records}')
-
-        if pred_records == ref_records:
-            # 100% right!
-            #assert sum(strong_correct_bonus) == sum(weak_correct_bonus) ==5, 'something is off'
-            strong_correct_bonus = [x*5 for x in strong_correct_bonus]
-            weak_correct_bonus = [x*5 for x in weak_correct_bonus]
-        elif pred_records in [[True, 'adequate', 'normal', 'no abnormality', 'normal'],
-                              [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
-                              [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
-                              [False, 'blood', 'inadequate','inadequate','inadequate'],
-                              [False, 'clot', 'inadequate','inadequate','inadequate'],
-                              [False, 'clot', 'inadequate','no abnormality','inadequate'],
-                               [False, 'blood', 'inadequate','no abnormality','inadequate']]:
-            strong_correct_bonus = [x*4 for x in strong_correct_bonus]
-            weak_correct_bonus = [x*4 for x in weak_correct_bonus]
-
-        elif self.max_sequential_overlap(pred_records) ==4:
-            strong_correct_bonus = [x*3 for x in strong_correct_bonus]
-            weak_correct_bonus = [x*3 for x in weak_correct_bonus]
-        
-        elif self.max_sequential_overlap(pred_records) ==3:
-            strong_correct_bonus = [x*2 for x in strong_correct_bonus]
-            weak_correct_bonus = [x*2 for x in weak_correct_bonus]
-
-        
-        elif self.max_sequential_overlap(pred_records) ==2:
-            strong_correct_bonus = [x*1.5 for x in strong_correct_bonus]
-            weak_correct_bonus = [x*1.5 for x in weak_correct_bonus]
-
-
-        # create a dataframe
-        
-        df = pd.DataFrame({
-            'pred_category':pred_records,
-                          'ref_category':ref_records,
-                          'strong_correct_bonus':strong_correct_bonus,
-                          })
-        print(df)
-        #weak_correct_bonus = torch.tensor(np.array(weak_correct_bonus)).to(device)
-        strong_correct_bonus = torch.tensor(np.mean(np.array(strong_correct_bonus))).to(device)
-        length_bonus = torch.tensor(np.mean(np.array(length_bonus))).to(device)
-        bonus = strong_correct_bonus +length_bonus
-        if True: #
-        
-            
-            bonus = bonus.unsqueeze(0).unsqueeze(1)
         
         return RewardModelOutput(rewards=bonus) if return_dict else (None,)
