@@ -36,6 +36,8 @@ Starting with labeled medical images, we use symbolic representations of clinica
 These multi-turn conversations are designed to reflect various styles of clinician-VLM interactions, with each conversation comprising a sequence of related questions that demonstrate accurate clinical reasoning. 
 
 
+Given an question for a medical image, there are only a few options that the image shall response, and also unknown, given the current information we cannot draw any conclusion. 
+Responses like this could be constructed into the categorical values which could be projected onto a logical graph tree. Just like the example below for blood maglicences. 
 
 
 
@@ -53,7 +55,13 @@ If you find this repo useful for your research, please consider citing the paper
 
 Dr-LLAVA：
 ```bibtex
-TBD
+@article{sun2024dr,
+  title={Dr-LLaVA: Visual Instruction Tuning with Symbolic Clinical Grounding},
+  author={Sun, Shenghuan and Goldgof, Gregory M and Schubert, Alexander and Sun, Zhiqing and Hartvigsen, Thomas and Butte, Atul J and Alaa, Ahmed},
+  journal={arXiv preprint arXiv:2405.19567},
+  year={2024}
+}
+
 ```
 LLaVA-RLHF:
 
