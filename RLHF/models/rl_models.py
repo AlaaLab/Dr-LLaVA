@@ -103,7 +103,7 @@ class AutoregressivePolicy(Policy):
         queries: Tensor,
         query_attn_masks: Tensor,
         responses: Tensor,
-        AQAQAQAQA:Tensor,
+        AnswerQuestionMASK:Tensor,
         images: Optional[Tensor] = None,
         reward_images: Optional[Tensor] = None,
         temperature: Optional[float] = None,
@@ -141,7 +141,7 @@ class AutoregressivePolicy(Policy):
         original_logits = outputs.logits[:, -self.args.response_len - 1 : -1]
         logits = original_logits / temperature
         labels = input_ids[:, -self.args.response_len :]
-        labels[AQAQAQAQA==self.base_tokenizer.pad_token_id] = self.base_tokenizer.pad_token_id
+        labels[AnswerQuestionMASK==self.base_tokenizer.pad_token_id] = self.base_tokenizer.pad_token_id
         
         logprobs = compute_logprobs(
             logits, labels, ignore_index=self.base_tokenizer.pad_token_id
@@ -234,28 +234,11 @@ class AutoregressivePolicy(Policy):
         for i in range(2,_k):
             s_queries, s_query_attn_masks, s_images = get_single_response(queries, query_attn_masks, images, _order=i)
 
-            # have a AQAQAQAQA mask
-            
-
-            # in addition, in order to make it calculate the KL divergence correctly ... I am stuck here again
+            # have a AnswerQuestionMASK 
             together = torch.cat([together, answers_tokens, s_queries],dim=1)
 
             together_attention = torch.cat([together_attention, answers_attention_mask, s_query_attn_masks],dim=1)
-            print('answer')
-            print(answers_tokens.shape)
-            print('answer_attention')
-            print(answers_attention_mask.shape)
-            print('query')
-            print(s_queries.shape)
-            print('query attention')
-            print(s_query_attn_masks.shape)
-            
-            print('together')
-            print(together.shape)
-            print('together attention')
 
-            print(together_attention.shape)
-            print('-----------------')
             sequences = self.base_model.generate(
             inputs=together,
             images=_images,
@@ -293,9 +276,7 @@ class AutoregressivePolicy(Policy):
             question_answers = torch.cat([question_answers, 
                                           torch.ones(s_queries.size()), 
                                           torch.ones(answers_tokens.size())*147], dim=1)
-            #if i ==k:
-            #    break
-            
+
         responses = sequences[:, _queries.size(1) :]
 
         question_answers[question_answers == 1] = self.base_tokenizer.pad_token_id
@@ -305,19 +286,19 @@ class AutoregressivePolicy(Policy):
 
         responses = right_pad(
             responses,
-            target_size=(sequences.size(0), self.args.response_len), #sequences[:, _queries.size(1):].size(1))
+            target_size=(sequences.size(0), self.args.response_len), 
             value=self.base_tokenizer.pad_token_id,
             )
         
         question_answers = right_pad(
             question_answers,
-            target_size=(sequences.size(0), self.args.response_len), #sequences[:, _queries.size(1):].size(1))
+            target_size=(sequences.size(0), self.args.response_len), 
             value=self.base_tokenizer.pad_token_id,
             )
         
         return dict(
             responses=responses,
-            AQAQAQAQA = question_answers,
+            AnswerQuestionMASK = question_answers,
             num_QA=_k-1,
 
         )  # Size (bsz * num_return_sequences, response_len).
@@ -367,35 +348,9 @@ class AutoregressiveValue(Value):
         if self.adapter_name is not None:
             self.base_model.set_adapter(self.adapter_name)
         self.base_model.config.use_cache = False
-        """
+
         _queries, _query_attn_masks, _images = get_first_response(queries, query_attn_masks, images)
-
-
-        input_ids = torch.cat([_queries, responses], dim=1)
-        attention_mask = input_ids.ne(self.base_tokenizer.pad_token_id) 
-        attention_mask[:, : _queries.size(1)] = _query_attn_masks
-        
-        
-
-        # Fix position id issues and ensure consistency with `respond` for GPT and OPT.
-        inputs = self.base_model.prepare_inputs_for_generation(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            images=images,
-            use_cache=False,
-        )
-        outputs = self.base_model(**inputs, output_hidden_states=True)
-        original_logits = outputs.logits[:, -self.args.response_len - 1 : -1]
-        logits = original_logits / temperature
-        labels = input_ids[:, -self.args.response_len :]
-        labels[AQAQAQAQA==self.base_tokenizer.pad_token_id] = self.base_tokenizer.pad_token_id
-        """
-        _queries, _query_attn_masks, _images = get_first_response(queries, query_attn_masks, images)
-
-
         sequences = torch.cat([_queries, responses], dim=1)
-
-        
         sequence_attn_masks = sequences.ne(self.base_tokenizer.pad_token_id)
 
         inputs = self.base_model.prepare_inputs_for_generation(
@@ -409,16 +364,13 @@ class AutoregressiveValue(Value):
             return_dict=True,
             output_hidden_states=True,
         )
-        # value[t]: \hat{V}(sequences_{:t-1}); must align with `_estimate_advantage`.
 
         last_hidden_state = outputs.hidden_states[-1]
         assert isinstance(last_hidden_state, torch.Tensor), f"{outputs}"
         logits = outputs.logits
-        # TODO(zhiqings): Hacking to make sure every parameter is used in the backward pass.
         last_hidden_state = last_hidden_state + 0.0 * torch.mean(logits)
         last_hidden_state = last_hidden_state[:, -responses.size(1) - 1 : -1]
 
-        # TODO(zhiqings): now we just manully convert output types
         last_hidden_state = last_hidden_state.type_as(
             next(self.value_head.parameters())
         )
@@ -582,9 +534,6 @@ def get_first_response(queries, queries_attention_mask, images, ):
 
         attention_promt_and_image = []
         attention_question_list = []
-
-
-
 
         prepare_question_attention_list = []
         prepare_question_list = []

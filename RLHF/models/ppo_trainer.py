@@ -264,7 +264,7 @@ class PPOTrainer(RLTrainer):
             
             
             
-            (responses, question_masks, num_QA) = common_utils.unpack_dict(respond_outputs, ("responses",'AQAQAQAQA', 'num_QA',))
+            (responses, question_masks, num_QA) = common_utils.unpack_dict(respond_outputs, ("responses",'AnswerQuestionMASK', 'num_QA',))
 
 
             
@@ -439,12 +439,7 @@ class PPOTrainer(RLTrainer):
                 )
                 del symbolic_reward_outputs_list
                 del sub_batch_reward_outputs
-            #reward_outputs['rewards'] = symbolic_reward_outputs['rewards']
-            
-            
 
-            
-            
             has_stop_token = [
                 self.tokenizer.eos_token_id in response
                 for response in responses.tolist()
@@ -559,7 +554,7 @@ class PPOTrainer(RLTrainer):
             queries,
             query_attn_masks,
             responses,
-            AQAQAQAQA,
+            AnswerQuestionMASK,
             images,
         ) = common_utils.prepare_inputs(
             common_utils.unpack_dict(
@@ -572,7 +567,7 @@ class PPOTrainer(RLTrainer):
                     "queries",
                     "query_attn_masks",
                     "responses",
-                    "AQAQAQAQA",
+                    "AnswerQuestionMASK",
                     "images",
                 ),
             ),
@@ -589,7 +584,7 @@ class PPOTrainer(RLTrainer):
             queries,
             query_attn_masks,
             responses,
-            AQAQAQAQA,
+            AnswerQuestionMASK,
             images,
             temperature=self.args.temperature,
             mode="policy",
@@ -639,7 +634,7 @@ class PPOTrainer(RLTrainer):
             queries,
             query_attn_masks,
             responses,
-            AQAQAQAQA,
+            AnswerQuestionMASK,
             images,
             reward_images,
         ) = common_utils.prepare_inputs(
@@ -653,7 +648,7 @@ class PPOTrainer(RLTrainer):
                     "queries",
                     "query_attn_masks",
                     "responses",
-                    "AQAQAQAQA",
+                    "AnswerQuestionMASK",
                     "images",
                     "reward_images",
                 ),
@@ -670,7 +665,7 @@ class PPOTrainer(RLTrainer):
             queries,
             query_attn_masks,
             responses,
-            AQAQAQAQA,
+            AnswerQuestionMASK,
             images,
             reward_images,
             temperature=self.args.temperature,
