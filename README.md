@@ -16,6 +16,11 @@
 Code space for Dr-LLaVA, a conversational VLM finetuned for analyzing medical images. It is developed with the aim to reduce the inconstency across conversation for medical diagnosis.
 We propose a new alignment algorithm that uses {\it symbolic representations} of clinical reasoning to ground VLMs in medical knowledge.
 
+Dr-LLaVA is trained on 4 A100 GPUs with 80GB memory. To train on fewer GPUs, you can reduce the `per_device_train_batch_size` and increase the `gradient_accumulation_steps` accordingly. Always keep the global batch size the same: `per_device_train_batch_size` x `gradient_accumulation_steps` x `num_gpus`.
+
+This process involves in three steps. 
+{\bf (i)} Construct the symbolic representations of clinical reasoning. 
+These representations are utilized to {\bf (i)} generate GPT-4-guided visual instruction tuning data at scale, simulating clinician-VLM conversations with demonstrations of clinical reasoning, and {\bf (ii)} create an automatic reward function that evaluates the clinical validity of VLM generations throughout clinician-VLM interactions.
 
 ## 0. Setup
 
@@ -35,16 +40,6 @@ pip install datasets
 **Note:** please install Pytorch 2.0.1 following the guidelines [here](https://pytorch.org/get-started/previous-versions/#v201). We found that the flash-attention implementation in the newest Pytorch Stable (2.1.0) could lead to buggy results. The codebase is tested with `torch==2.0.1+cu118`.
 
 ## 1. Built up the rule-based reward model 
-## Train 
-### Overview
-
-Dr-LLaVA is trained on 4 A100 GPUs with 80GB memory. To train on fewer GPUs, you can reduce the `per_device_train_batch_size` and increase the `gradient_accumulation_steps` accordingly. Always keep the global batch size the same: `per_device_train_batch_size` x `gradient_accumulation_steps` x `num_gpus`.
-
-This process involves in three steps. 
-{\bf (i)} Construct the symbolic representations of clinical reasoning. 
-These representations are utilized to {\bf (i)} generate GPT-4-guided visual instruction tuning data at scale, simulating clinician-VLM conversations with demonstrations of clinical reasoning, and {\bf (ii)} create an automatic reward function that evaluates the clinical validity of VLM generations throughout clinician-VLM interactions.
-
-
 ### Construct the symbolic representations of clinical reasoning
 Given an question for a medical image, there are only a few options that the image shall response, and also unknown, given the current information we cannot draw any conclusion. 
 Responses like this could be constructed into the categorical values which could be projected onto a logical graph tree. Just like the example below for blood maglicences. 
