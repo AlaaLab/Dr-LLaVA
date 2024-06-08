@@ -28,16 +28,25 @@ These representations are utilized to {\bf (i)} generate GPT-4-guided visual ins
 
 
 ### Construct the symbolic representations of clinical reasoning
-
+Given an question for a medical image, there are only a few options that the image shall response, and also unknown, given the current information we cannot draw any conclusion. 
+Responses like this could be constructed into the categorical values which could be projected onto a logical graph tree. Just like the example below for blood maglicences. 
 <div align="center">
     <img src="assets/images/Symbolic_representation.png" alt="Workflow" width="368px">
 </div>
+A medical image with a known diagnosis that could be observed from the image, must have other morlogical features that the clinician identified first prior to confirm the diagnosis. 
+For example
+A medical image to diagnosis framework could be conputalized into:
+image -> Question about image description -> Question about image quality evaluation -> Question about morphogical feature 1 -> Question about the inference upon on the feature 1 -> ... -> Question about morphogical feature n -> Question about the inference upon on the feature n -> Diagnosis.
+
 Starting with labeled medical images, we use symbolic representations of clinical reasoning and GPT-4 to generate realistic conversations between a VLM and a clinician about the visual content of each image. 
 These multi-turn conversations are designed to reflect various styles of clinician-VLM interactions, with each conversation comprising a sequence of related questions that demonstrate accurate clinical reasoning. 
 
+#### Construct your own clinical logics for medical diagnosis
 
-Given an question for a medical image, there are only a few options that the image shall response, and also unknown, given the current information we cannot draw any conclusion. 
-Responses like this could be constructed into the categorical values which could be projected onto a logical graph tree. Just like the example below for blood maglicences. 
+Here is an example of the clinical logics in addition to our private dataset. Taking X-ray image as an example. 
+
+You can find more examples and details in the [Example_Clinical_Logics.md](assets/Example_Clinical_Logics.md) file.
+
 
 
 
