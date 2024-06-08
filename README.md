@@ -17,6 +17,24 @@ Code space for Dr-LLaVA, a conversational VLM finetuned for analyzing medical im
 We propose a new alignment algorithm that uses {\it symbolic representations} of clinical reasoning to ground VLMs in medical knowledge.
 
 
+## 0. Setup
+
+Please refer to [`llava_setup`](../llava_setup) for instructions on how to set up the customized llava package.
+
+Additionally, you **should** run the following command to make sure the versions of some essential packages are correct:
+
+```bash
+pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
+pip install deepspeed==0.9.3
+pip install peft==0.4.0
+pip install transformers==4.31.0
+pip install bitsandbytes==0.41.0
+pip install datasets
+```
+
+**Note:** please install Pytorch 2.0.1 following the guidelines [here](https://pytorch.org/get-started/previous-versions/#v201). We found that the flash-attention implementation in the newest Pytorch Stable (2.1.0) could lead to buggy results. The codebase is tested with `torch==2.0.1+cu118`.
+
+## 1. Built up the rule-based reward model 
 ## Train 
 ### Overview
 
@@ -50,8 +68,23 @@ You can find more examples and details in the [Example_Clinical_Logics.md](asset
 After which you can agument the QAs with large language model available to increase the diversity of the QAs. 
 
 
+### Using clinical logics to construct the reward model
 
+### Supervised finetuning the LLaVA model
 
+Note, the RL part of the model will not work unless the supervised fintuning is performed. 
+
+After curated the dataset and store the training and test data in the LLaVA.josn format. 
+Run 
+```
+bash scripts/7b-v1.5-224/initialize_policy_model.sh
+```
+
+### Training the RL Model with PPO
+Run
+```
+bash scripts/7b-v1.5-224/train_rl_model.sh
+```
 ## Examples
 
 <div align="center">
