@@ -26,6 +26,7 @@ import transformers
 from transformers.trainer_utils import EvalPrediction
 from transformers.utils.generic import ModelOutput
 import pandas as pd
+import math
 # Set the display options
 pd.set_option('display.max_rows', None)  # Replace None with a specific number if you want to limit the rows
 pd.set_option('display.max_columns', None)  # Replace None with a specific number if you want to limit the columns
@@ -429,39 +430,34 @@ def no_exist_in_sentence(sentence, keywords):
     return True
 
 class Rule_Based_Classifier:
+    """
+    A classifier that uses rule-based methods to analyze and classify medical diagnosis data.
+    """
     def __init__(self):
-        self.knowledge = {'NORMAL':[True, 'adequate', 'normal', 'no abnormality', 'normal'],
-                            'AML':[True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
-                              'MM':[True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
-                              'BLOOD':[False, 'blood', 'inadequate','inadequate','inadequate'],
-                              'CLOT':[False, 'clot', 'inadequate','inadequate','inadequate']}
+        self.knowledge = {
+            'NORMAL': [True, 'adequate', 'normal', 'no abnormality', 'normal'],
+            'AML': [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
+            'MM': [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
+            'BLOOD': [False, 'blood', 'inadequate', 'inadequate', 'inadequate'],
+            'CLOT': [False, 'clot', 'inadequate', 'inadequate', 'inadequate']
+        }
+
+    def _get_method(self, index):
+        """
+        Returns the method associated with the given category index.
+        """
+        method_dict = {
+            1: self._check_quality,
+            2: self._image_analysis,
+            3: self._pathology_analysis,
+            4: self._detailed_abnormality_reasoning,
+            5: self._diagnosis
+        }
+        return method_dict.get(index, None)  # Returns None if index is not found
 
     # write 5 function to check if each answer is cosistent with the question
     # the 5 question cover 5 aspects
     # Low quality detection; Image overall analysis; Pathology abnormality analysis;Detailed abnormality reasoning; Diagnosis
-    def max_sequential_overlap(self, list1):
-
-        list_of_lists = [[True, 'adequate', 'normal', 'no abnormality', 'normal'],
-                              [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
-                              [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
-                              [False, 'blood', 'inadequate','inadequate','inadequate'],
-                              [False, 'clot', 'inadequate','inadequate','inadequate']]
-        max_overlap = 0
-        list_length = len(list1)
-
-        for lst in list_of_lists:
-            for i in range(list_length):
-                # Check the overlap starting from each index of list1
-                overlap = 0
-                for j in range(i, list_length):
-                    if list1[j] == lst[j]:
-                        overlap += 1
-                    else:
-                        break
-                max_overlap = max(max_overlap, overlap)
-
-        return max_overlap
-
     def _check_quality(self, sentences):
         sentences = sentences.lower()  #This pathological image segment cannot be adequately utilized for accurate medical diagnosis
         # True, mean it is the good quality
@@ -542,89 +538,42 @@ class Rule_Based_Classifier:
         else:
             return  'no match'
     
-    def calculate_reward(self, sentences, batch_size_confirmation, return_dict=True, device =None, ref_answer=None,
-    category=None, order=None):
+    def calculate_reward(self, sentences,  return_dict=True, device =None, ref_answers=None,
+    categories=None):
         """
         This function is used to calculate the accumulated reward for a series of sentences
         """
-    
-        assert len(sentences) == len(order), 'the number of input and the number of orders are not equal'
-        outcome = []
-        for (_index, pred) in zip(order, sentences):
-            if _index == 1:
-                outcome.append(self._check_quality(pred))
-            elif _index == 2:
-                outcome.append(self._image_analysis(pred))
-            elif _index == 3:
-                outcome.append(self._pathology_analysis(pred))
-            elif _index == 4:
-                outcome.append(self._detailed_abnormality_reasoning(pred))
-            elif _index == 5:
-                outcome.append(self._diagnosis(pred))
-            else:
-                assert False, 'A condition is not considered'
+        outcomes = []
         gt = []
-        for (_index, _gt) in zip(order, ref_answer):
-            if _index == 1:
-                gt.append(self._check_quality(_gt))
-            elif _index == 2:
-                gt.append(self._image_analysis(_gt))
-            elif _index == 3:
-                gt.append(self._pathology_analysis(_gt))
-            elif _index == 4:
-                gt.append(self._detailed_abnormality_reasoning(_gt))
-            elif _index == 5:
-                gt.append(self._diagnosis(_gt))
-            else:
-                assert False, 'A condition is not considered'
-        reward_c = 0
-        reward_a = 0
-        c_list = []
-        a_list = []
+        # sort the sentences and ref_answers by categories
         
-        for _index, (pred, groundtruth) in enumerate(zip(outcome, gt)):
-            if pred == groundtruth:
-                reward_c +=1
-                c_list.append(1)
-            elif pred =='no match':
-                reward_c +=-0.5
-                c_list.append(-0.5)
-            else:
-                reward_c +=0
-                c_list.append(0)
-        if len(c_list) ==1 and c_list[0] ==1:
-            a_list.append(0.5)
-        elif len(c_list) ==1:
-            a_list.append(0.5)
-        else:
-            a_list.append(0)
-        for i in range(1,len(order)):
-            res = [[self.knowledge[key][order[x]-1] for x in [i-1,i]] for key in self.knowledge.keys()]
-            #print(res)
-            if outcome[i-1: i+1] in res:
-                reward_a += 1
-                a_list.append(1)
-            else:
-                a_list.append(0)
-        #sadsv
+        
+        for sentence, category in zip(sentences, categories):
+            method = self._get_method(category)
+            if not method:
+                raise ValueError(f"No method found for category {category}")
+            outcome = method(sentence)
+            outcomes.append(outcome)
+        
 
-        df = pd.DataFrame({
-            'pred_category':outcome,
-                          'ref_category':gt,
-                          'correctness':c_list,
-                          'alignness':a_list,
-                          })
-        
-        
-        if c_list[0]<=0:
-            bonus = c_list[0]
-        elif c_list[0]==1:
-            bonus = c_list[0]* (reward_c+1)
-        else:
-            assert False, 'something off'
-        print(f'total bonus {bonus}')
-        
-        #bonus = reward_a + reward_c
-        bonus = torch.tensor(np.array(bonus)).to(device).unsqueeze(0).unsqueeze(1)
-        
+        for ref_answer, category in zip(ref_answers, categories):
+            method = self._get_method(category)
+            if not method:
+                raise ValueError(f"No method found for category {category}")
+            gt_result = method(ref_answer)
+            gt.append(gt_result)
+
+        correct_bonus = [1 if x == y else -0.5 if x == 'no match' else 0 for x, y in zip(outcomes, gt)]
+        align_bonus = []
+        for i in range(1,len(categories)):
+            res = [[self.knowledge[key][categories[x]-1] for x in [i-1,i]] for key in self.knowledge.keys()]
+            if outcomes[i-1: i+1] in res:
+                align_bonus.append(1)
+            else:
+                align_bonus.append(0)
+        # length_bonus is calculated if the length of the outcomes is the same as the length of the ref_answers has more than 10 letters difference
+        length_bonus = [ - math.abs(len(x)-len(y))/10 if (math.abs(len(x)-len(y))/10)>1 else 0 for x, y in zip(outcomes, gt)]
+        # calculate the total bonus
+        bonus = sum(correct_bonus) + sum(align_bonus) + sum(length_bonus)
         return RewardModelOutput(rewards=bonus) if return_dict else (None,)
+        

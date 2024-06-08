@@ -140,18 +140,8 @@ class PPOTrainer(RLTrainer):
 
         non_score_rewards = -self.kl_ctl.value * kl
         shaped_rewards = non_score_rewards.clone()
-        # This introduces a small index off by one bug if pad_token_id == eos_token_id.
-        # terminal_positions = (responses != self.tokenizer.pad_token_id).sum(dim=1) - 1
-        # shaped_rewards[list(range(rewards.size(0))), terminal_positions] += rewards
-        
-        
-        '''
-        x = shaped_rewards.size()[1]
-        tensor_transposed = shaped_rewards.t()
-        tensor_reshaped = tensor_transposed.reshape(x, 4, 5)
-        shaped_rewards = tensor_reshaped.reshape(4, 5 * x)
-        '''
-        #print(shaped_rewards.size())
+
+
         shaped_rewards[:, -1] += (
             rewards.squeeze()
             #+ (length_bonus * self.args.length_bonus_score)
@@ -375,7 +365,6 @@ class PPOTrainer(RLTrainer):
                 del sub_batch_ref_policy_outputs
                 del ref_policy_outputs_list
                 del sub_batch
-            print('or here?')
             policy_outputs = common_utils.unpack_dict(
                 policy_outputs,
                 keys=("logprobs", "values", "entropies"),
@@ -416,7 +405,6 @@ class PPOTrainer(RLTrainer):
                 
                 assert batch_size_per_device % sub_batch_size == 0
 
-                reward_outputs_list = []
                 symbolic_rm = make_symbolic_rm()
                 
 
@@ -426,18 +414,8 @@ class PPOTrainer(RLTrainer):
                     ###
                     _order = [int(x.split('order ')[1]) for x in _answer]
                     trimed_answer = [x.split('order ')[0] for x in _answer]
-                    idx_start = sub_batch_idx * num_QA
-                    idx_end = (sub_batch_idx + 1) * num_QA
-                                   
-                    #answer_pairs = list(zip(_order, trimed_answer))
-                    #answer_pairs.sort()
-                    #sorted_answer= [_a for _, _a in answer_pairs]
-                    ###
+
                     sorted_answer = trimed_answer[:num_QA]
-
-
-                    
-                    
                     prediction = []
                     prediction.append(text_responses[sub_batch_idx].split('USER: ')[0])
 
@@ -445,9 +423,9 @@ class PPOTrainer(RLTrainer):
                         prediction.append(text_responses[sub_batch_idx].split('USER: ')[i].split('ASSISTANT:')[-1])
                     
                     sub_batch_reward_outputs = symbolic_rm.calculate_reward(
-                            sentences = prediction, batch_size_confirmation = 1, 
-                            return_dict=True, device = device_of_a,ref_answer = sorted_answer,  category=diagnosis[sub_batch_idx],
-                            order = _order,
+                            sentences = prediction, 
+                            return_dict=True, device = device_of_a,ref_answers= sorted_answer,  categories=_order
+                            
                         )
                     
                     symbolic_reward_outputs_list.append(sub_batch_reward_outputs)
@@ -474,9 +452,6 @@ class PPOTrainer(RLTrainer):
             ]
             
             
-            
-            
-
             reward_outputs = self.post_reward(
                 reward_outputs,
                 responses,
@@ -485,8 +460,6 @@ class PPOTrainer(RLTrainer):
                 has_stop_token=has_stop_token,
             )
             
-            
-
             rollouts_batch.update(reward_outputs)
 
             # Shape reward with KL penalty.
