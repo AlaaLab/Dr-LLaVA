@@ -47,6 +47,8 @@ Here is an example of the clinical logics in addition to our private dataset. Ta
 
 You can find more examples and details in the [Example_Clinical_Logics.md](assets/Example_Clinical_Logics.md) file.
 
+After which you can agument the QAs with large language model available to increase the diversity of the QAs. 
+
 
 
 
