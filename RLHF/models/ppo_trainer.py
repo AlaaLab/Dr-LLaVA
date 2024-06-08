@@ -305,8 +305,7 @@ class PPOTrainer(RLTrainer):
                 )
                 
             else:
-                print(batch_size_per_device, sub_batch_size)
-                print('You are here now right')
+
                 assert batch_size_per_device % sub_batch_size == 0
 
                 policy_outputs_list = []
@@ -335,7 +334,7 @@ class PPOTrainer(RLTrainer):
                 del policy_outputs_list
                 del sub_batch
                 
-            print('are you here?')
+            
             if sub_batch_size is None or sub_batch_size == batch_size_per_device:
                 ref_policy_outputs = self.ref_policy(
                     **rollouts_batch, temperature=self.args.temperature
