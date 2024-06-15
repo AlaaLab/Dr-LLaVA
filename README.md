@@ -86,12 +86,11 @@ You can find more examples and details in the [Example_Clinical_Logics.md](asset
 After which you can agument the QAs with large language model available to increase the diversity of the QAs. 
 
 
-
-### Using clinical logics to construct the reward model
+## Using clinical logics to construct the reward model
 To construct your own reward model, you can refer to the class `RewardModel_HEME` in the file `RLHF/models/reward_model.py` at line 444. Also `RewardModel_Custom` provides a template for building a reward model based on clinical logics. You can customize the logic and rules according to your specific requirements. 
 
 
-### Training the RL Model with PPO
+## Training the RL Model with PPO
 Run
 ```
 bash scripts/7b-v1.5-224/train_rl_model.sh
