@@ -441,9 +441,11 @@ def no_exist_in_sentence(sentence, keywords):
     return True
 
 
-class Rule_Based_Classifier:
+class RewardModel_HEME:
     """
-    A classifier that uses rule-based methods to analyze and classify medical diagnosis data.
+    Rule based reward model for HEMATOLOGY BONE MARROW EXAMINATION
+    For different user cases, the reward model will return different rewards based on the input sentences
+    Please edit the below functions to match the user case
     """
 
     def __init__(self):
@@ -674,5 +676,159 @@ class Rule_Based_Classifier:
             for x, y in zip(outcomes, gt)
         ]
         # calculate the total bonus
+        bonus = sum(correct_bonus) + sum(align_bonus) + sum(length_bonus)
+        return RewardModelOutput(rewards=bonus) if return_dict else (None,)
+    
+
+class RewardModel_Custom:
+    """
+    Rule-based reward model for a custom analysis.
+    For different user cases, the reward model will return different rewards based on the input sentences.
+    Please edit the below functions to match the user case.
+    """
+
+    def __init__(self):
+        """
+        Initialize the reward model with symbolic clinical knowledge.
+        
+        self.knowledge: A dictionary representing clinical knowledge. Each key corresponds to a condition, 
+        and the value is a list where the first element is a boolean indicating the validity of the condition, 
+        followed by attributes describing the condition. This knowledge base is used to ensure the model 
+        adheres to accurate clinical information and penalizes for knowledge hallucination.
+        """
+        self.knowledge = {
+            "CONDITION_1": ["attribute_0", "attribute_1", "attribute_2", "attribute_3", "attribute_4"],
+            "CONDITION_2": ["attribute_0", "attribute_1", "attribute_2", "attribute_3", "attribute_4"],
+            "CONDITION_3": ["attribute_0", "attribute_1", "attribute_2", "attribute_3", "attribute_4"],
+            "CONDITION_4": ["attribute_0", "attribute_1", "attribute_2", "attribute_3", "attribute_4"],
+            "CONDITION_5": ["attribute_0", "attribute_1", "attribute_2", "attribute_3", "attribute_4"],
+        }
+
+    def _get_method(self, index):
+        """
+        Returns the method associated with the given category index.
+        """
+        method_dict = {
+            1: self._analysis_1,
+            2: self._analysis_2,
+            3: self._analysis_3,
+            4: self._analysis_4,
+            5: self._analysis_5,
+        }
+        return method_dict.get(index, None)  # Returns None if index is not found
+
+    def _analysis_1(self, sentences):
+        """
+        Analysis 1 description.
+
+        Parameters:
+        sentences: Sentences required for Analysis 1.
+
+        Returns:
+        Analysis_1_condition: The result of Analysis 1.
+        """
+        raise NotImplementedError("Implement Analysis_1 logic here.")
+
+    def _analysis_2(self, sentences):
+        """
+        Analysis 2 description.
+
+        Parameters:
+        sentences: Sentences required for Analysis 2.
+
+        Returns:
+        Analysis_2_condition: The result of Analysis 2.
+        """
+        raise NotImplementedError("Implement Analysis_2 logic here.")
+
+    def _analysis_3(self, sentences):
+        """
+        Analysis 3 description.
+
+        Parameters:
+        sentences: Sentences required for Analysis 3.
+
+        Returns:
+        Analysis_3_condition: The result of Analysis 3.
+        """
+        raise NotImplementedError("Implement Analysis_3 logic here.")
+
+    def _analysis_4(self, sentences):
+        """
+        Analysis 4 description.
+
+        Parameters:
+        sentences: Sentences required for Analysis 4.
+
+        Returns:
+        Analysis_4_condition: The result of Analysis 4.
+        """
+        raise NotImplementedError("Implement Analysis_4 logic here.")
+
+    def _analysis_5(self, sentences):
+        """
+        Analysis 5 description.
+
+        Parameters:
+        sentences: Sentences required for Analysis 5.
+
+        Returns:
+        Analysis_5_condition: The result of Analysis 5.
+        """
+        raise NotImplementedError("Implement Analysis_5 logic here.")
+
+    def calculate_reward(
+        self,
+        sentences,
+        return_dict=True,
+        device=None,
+        ref_answers=None,
+        categories=None,
+    ):
+        """
+        This function is used to calculate the accumulated reward for a series of sentences.
+        """
+        outcomes = []
+        gt = []
+        # Sort the sentences and ref_answers by categories
+
+        for sentence, category in zip(sentences, categories):
+            method = self._get_method(category)
+            if not method:
+                raise ValueError(f"No method found for category {category}")
+            outcome = method(sentence)
+            outcomes.append(outcome)
+
+        for ref_answer, category in zip(ref_answers, categories):
+            method = self._get_method(category)
+            if not method:
+                raise ValueError(f"No method found for category {category}")
+            gt_result = method(ref_answer)
+            gt.append(gt_result)
+
+        correct_bonus = [
+            1 if x == y else -0.5 if x == "no match" else 0
+            for x, y in zip(outcomes, gt)
+        ]
+        align_bonus = []
+        for i in range(1, len(categories)):
+            res = [
+                [self.knowledge[key][categories[x] - 1] for x in [i - 1, i]]
+                for key in self.knowledge.keys()
+            ]
+            if outcomes[i - 1 : i + 1] in res:
+                align_bonus.append(1)
+            else:
+                align_bonus.append(0)
+
+        length_bonus = [
+            (
+                -abs(len(x) - len(y)) / 10
+                if (abs(len(x) - len(y)) / 10) > 1
+                else 0
+            )
+            for x, y in zip(outcomes, gt)
+        ]
+
         bonus = sum(correct_bonus) + sum(align_bonus) + sum(length_bonus)
         return RewardModelOutput(rewards=bonus) if return_dict else (None,)
