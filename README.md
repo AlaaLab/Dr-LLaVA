@@ -11,7 +11,6 @@
 
 </div>
 
-[[Project Page / Demo / Model Weights](https://llava-rlhf.github.io/)]
 
 Code space for Dr-LLaVA, a conversational VLM finetuned for analyzing medical images. It is developed with the aim to reduce the inconstency across conversation for medical diagnosis.
 We propose a new alignment algorithm that uses {\it symbolic representations} of clinical reasoning to ground VLMs in medical knowledge.
