@@ -18,9 +18,10 @@ We propose a new alignment algorithm that uses **symbolic representations** of c
 Dr-LLaVA is trained on 4 A100 GPUs with 80GB memory. To train on fewer GPUs, you can reduce the `per_device_train_batch_size` and increase the `gradient_accumulation_steps` accordingly. Always keep the global batch size the same: `per_device_train_batch_size` x `gradient_accumulation_steps` x `num_gpus`.
 
 This process involves in three steps. 
-**(i)** Construct the symbolic representations of clinical reasoning. 
-These representations are utilized to **(i)** generate GPT-4-guided visual instruction tuning data at scale, simulating clinician-VLM conversations with demonstrations of clinical reasoning, and **(ii)** create an automatic reward function that evaluates the clinical validity of VLM generations throughout clinician-VLM interactions.
-
+**STEP-0** Curated the dataset and initialize the RL Model
+**STEP-1** Construct the symbolic representations of clinical reasoning. These representations are utilized to generate GPT-4-guided visual instruction tuning data at scale, simulating clinician-VLM conversations with demonstrations of clinical reasoning.
+**STEP-2** Create an automatic reward function that evaluates the clinical validity of VLM generations throughout clinician-VLM interactions.
+**STEP-3*** 
 ## 0. Setup
 
 Please refer to [`llava_setup`](../llava_setup) for instructions on how to set up the customized llava package.
