@@ -63,7 +63,9 @@ Refer to LLaVA's instruction tuning data [here](https://huggingface.co/datasets/
 
 Note: The RL part of the model will not function unless supervised fine-tuning is performed.
 
-After curating the dataset and storing the training and test data in the LLaVA.json format, run:
+After curating the dataset and and storing the training and test data in the LLaVA.json format, please download the the 7b SFT model checkpoint from [`LLaVA-RLHF-7b-v1.5-224`](https://huggingface.co/zhiqings/LLaVA-RLHF-7b-v1.5-224) for supervised fine tuning, you can run the following script to initialize the policy model:
+run:
+
 
 ```bash
 bash scripts/7b-v1.5-224/initialize_policy_model.sh
