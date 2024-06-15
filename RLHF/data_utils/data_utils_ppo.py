@@ -58,50 +58,57 @@ class QueryResponseDataset(Dataset):
         list_dict_data = df.to_dict(orient="records")
 
         _s = copy.deepcopy([ex["conversations"] for ex in list_dict_data])
-        
+
         _s = preprocess_multimodal(_s, data_args)
 
-        #_s = [__s[:2] for __s in _s] # what
+        # _s = [__s[:2] for __s in _s] # what
         _a = []
         _s_new = []
         for __s in _s:
             __a = []
-            
+
             assert __s[-1]["from"] == "gpt", f"{__s}"
             if len(__s) == 10:
-                __s[0]["value"] = __s[0]["value"].split('. ')[-1] 
-                __a.append(__s[1]["value"] +'order 1')
+                __s[0]["value"] = __s[0]["value"].split(". ")[-1]
+                __a.append(__s[1]["value"] + "order 1")
                 __s[1]["value"] = "order 1\n"
-                __s[2]["value"] = __s[2]["value"].split('. ')[-1]
-                __a.append(__s[3]["value"]  +'order 2')
+                __s[2]["value"] = __s[2]["value"].split(". ")[-1]
+                __a.append(__s[3]["value"] + "order 2")
                 __s[3]["value"] = "order 2\n"
-                __s[4]["value"] = __s[4]["value"].split('. ')[-1]
-                __a.append(__s[5]["value"] + 'order 3')
+                __s[4]["value"] = __s[4]["value"].split(". ")[-1]
+                __a.append(__s[5]["value"] + "order 3")
                 __s[5]["value"] = "order 3\n"
-                __s[6]["value"] = __s[6]["value"].split('. ')[-1]
-                __a.append(__s[7]["value"] +'order 4')
+                __s[6]["value"] = __s[6]["value"].split(". ")[-1]
+                __a.append(__s[7]["value"] + "order 4")
                 __s[7]["value"] = "order 4\n"
-                __s[8]["value"] = __s[8]["value"].split('. ')[-1]
-                __a.append(__s[9]["value"] + 'order 5')
+                __s[8]["value"] = __s[8]["value"].split(". ")[-1]
+                __a.append(__s[9]["value"] + "order 5")
                 __s[9]["value"] = "order 5\n"
-                
+
             else:
                 __s[-1]["value"] = "\n"
-            
-            def permute_qa_pairs(source):# need to put the <image>\n as the first
-                    # Split the list into QA pairs
-                    qa_pairs = [[source[i], source[i+1]] for i in range(0, len(source), 2)]
-                    for i in range(5):
-                        qa_pairs[i][0]['value'] = qa_pairs[i][0]['value'].replace('<image>\n','')
-                    # Shuffle the QA pairs
-                    random.shuffle(qa_pairs)
-                    # Flatten the list back to the original format
-                    permuted_list = [item for pair in qa_pairs for item in pair]
-                    permuted_list[0]['value'] = '<image>\n' +permuted_list[0]['value']
-                    return permuted_list
-            
+
+            def permute_qa_pairs(source):  # need to put the <image>\n as the first
+                # Split the list into QA pairs
+                qa_pairs = [
+                    [source[i], source[i + 1]] for i in range(0, len(source), 2)
+                ]
+                for i in range(5):
+                    qa_pairs[i][0]["value"] = qa_pairs[i][0]["value"].replace(
+                        "<image>\n", ""
+                    )
+                # Shuffle the QA pairs
+                random.shuffle(qa_pairs)
+                # Flatten the list back to the original format
+                permuted_list = [item for pair in qa_pairs for item in pair]
+                permuted_list[0]["value"] = "<image>\n" + permuted_list[0]["value"]
+                return permuted_list
+
             __s = permute_qa_pairs(__s)
-            orders= [int(__s[2*i+1]["value"].split(" ")[-1].split('\n')[0]) for i in range(5)]
+            orders = [
+                int(__s[2 * i + 1]["value"].split(" ")[-1].split("\n")[0])
+                for i in range(5)
+            ]
             __s[1]["value"] = "\n"
             __s[3]["value"] = "\n"
             __s[5]["value"] = "\n"
@@ -110,21 +117,17 @@ class QueryResponseDataset(Dataset):
 
             __a_new = []
             for num in orders:
-                __a_new.append(__a[num-1])
+                __a_new.append(__a[num - 1])
             _a.append(__a_new)
             _s_new.append(__s)
+
         def diagnosis_convert(line):
-            diag = line['diagnosis'].upper()
+            diag = line["diagnosis"].upper()
             if "_" in diag:
                 diag = diag.split("_")[1]
             return diag
+
         diagnosis = [diagnosis_convert(ex) for ex in list_dict_data]
-
-            
-
-        
-            
-
 
         queries = [
             preprocess(
@@ -137,15 +140,9 @@ class QueryResponseDataset(Dataset):
             for __s in tqdm.tqdm(_s_new)
         ]
 
-
-        
-
-     
         queries = [
             torch.tensor(query, dtype=torch.long).view(-1)[:-3] for query in queries
         ]
-
-        
 
         filtered_queries = []
         howlong = []
@@ -154,8 +151,7 @@ class QueryResponseDataset(Dataset):
             if len(query) <= query_len:
                 filtered_queries.append(query)
         import statistics
-        
-        
+
         max_query_len = max(len(query) for query in filtered_queries)
         logger.warning(f"Max query length: {max_query_len}")
 
@@ -178,7 +174,7 @@ class QueryResponseDataset(Dataset):
         self.queries = queries
         self.answers = answers
         self.diagnosis = diagnosis
-        
+
         self.query_attn_masks = queries.ne(tokenizer.pad_token_id).long()
 
         # Auxiliary data.
@@ -189,10 +185,10 @@ class QueryResponseDataset(Dataset):
         return_dict = dict(
             queries=self.queries[idx],
             query_attn_masks=self.query_attn_masks[idx],
-            answers = self.answers[idx],
-            diagnosis = self.diagnosis[idx],
+            answers=self.answers[idx],
+            diagnosis=self.diagnosis[idx],
         )
-        
+
         image_file = self.list_dict_data[idx]["image"]
         image_folder = self.data_args.image_folder
         processor = self.data_args.image_processor
@@ -256,7 +252,7 @@ class QueryResponseDataset(Dataset):
         return_dict["length_bonus_multiplier"] = torch.tensor(
             length_bonus, dtype=torch.float
         )
-        
+
         return return_dict
 
     def __len__(self):
@@ -266,16 +262,15 @@ class QueryResponseDataset(Dataset):
 @dataclasses.dataclass
 class DataCollatorForQueryResponseDataset(object):
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        
+
         _dict = {}
         for key in instances[0].keys():
-            if key not in ['answers', 'diagnosis']:
+            if key not in ["answers", "diagnosis"]:
                 _dict[key] = torch.stack([instance[key] for instance in instances])
             else:
-                assert key in ['answers', 'diagnosis'], 'something is wrong'
+                assert key in ["answers", "diagnosis"], "something is wrong"
                 _dict[key] = [instance[key] for instance in instances]
         return _dict
-
 
 
 def make_rl_data_module(
@@ -294,8 +289,6 @@ def make_rl_data_module(
     train_df = pd.concat(
         [pd.DataFrame(train_instructions[split]) for split in data_args.train_splits]
     )
-    
-    
 
     train_dataset = QueryResponseDataset(
         df=train_df,
@@ -308,4 +301,3 @@ def make_rl_data_module(
         eval_dataset=None,
         data_collator=DataCollatorForQueryResponseDataset(),
     )
-

@@ -34,7 +34,10 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import sys
 import transformers
-sys.path.append('/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/')
+
+sys.path.append(
+    "/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/"
+)
 
 from llava import conversation as conversation_lib
 from llava.constants import (
@@ -351,7 +354,6 @@ def preprocess_llama_2(
     )
 
 
-
 def preprocess_v1(
     sources,
     tokenizer: transformers.PreTrainedTokenizer,
@@ -367,12 +369,11 @@ def preprocess_v1(
 
     # Apply prompt templates
     conversations = []
-    #print(sources)
-    #print(len(sources))
-    #rint(sources)
-    assert len(sources[0]) == 10, 'something is off'
+    # print(sources)
+    # print(len(sources))
+    # rint(sources)
+    assert len(sources[0]) == 10, "something is off"
     permuteation = True
-    
 
     for i, source in enumerate(sources):
         if roles[source[0]["from"]] != conv.roles[0]:
@@ -383,7 +384,7 @@ def preprocess_v1(
         for j, sentence in enumerate(source):
             role = roles[sentence["from"]]
             assert role == conv.roles[j % 2], f"{i}"
-            conv.append_message(role, sentence["value"].split('. ')[-1])
+            conv.append_message(role, sentence["value"].split(". ")[-1])
 
         reward_model_prompt_per_example = reward_model_prompt
 

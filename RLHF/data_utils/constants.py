@@ -18,6 +18,7 @@ from enum import Enum
 
 FACTUAL_PROMPT = "Specifically, the AI's response should be fully supported by the combination of the following captions:\n"
 
+
 class AnswerType(Enum):
     GENERAL = 1
     A_IN_ABCD = 2

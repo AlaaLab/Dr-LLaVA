@@ -139,9 +139,11 @@ class RLTrainer(object):
         self.kl_ctl = FixedKLController(kl_coef=args.kl_coef)
         self.log_history = []
         self.args.set_truncate_token_ids(self.tokenizer)
-        enable_full_determinism(
-            self.args.seed
-        ) if self.args.full_determinism else set_seed(self.args.seed)
+        (
+            enable_full_determinism(self.args.seed)
+            if self.args.full_determinism
+            else set_seed(self.args.seed)
+        )
         self.reward_model_prompt = None
         self.reward_model_prompt_untokenized = None
 
@@ -231,9 +233,9 @@ class RLTrainer(object):
                             self.accelerator.clip_grad_norm_(
                                 self.policy.parameters(), self.args.max_grad_norm
                             )
-                        stats_for_this_step[
-                            "loss/grad_norm"
-                        ] = self._compute_grad_norm()
+                        stats_for_this_step["loss/grad_norm"] = (
+                            self._compute_grad_norm()
+                        )
                         stats_list.append(stats_for_this_step)
                     self.optimizer.step()
                     self.optimizer.zero_grad(set_to_none=True)
@@ -379,9 +381,6 @@ class RLTrainer(object):
                 key: torch.stack([instance[idx] for instance in instances])
                 for idx, key in enumerate(keys)
             }
-        
-       
-        
 
         rollouts_dataset = TensorDataset(*[rollouts[key] for key in keys])
         rollouts_dataloader = DataLoader(

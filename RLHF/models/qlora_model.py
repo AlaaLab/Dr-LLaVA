@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import sys
-sys.path.append('/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/')
+
+sys.path.append(
+    "/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/"
+)
 from argparse import Namespace
 from typing import Optional
 from os.path import join, exists

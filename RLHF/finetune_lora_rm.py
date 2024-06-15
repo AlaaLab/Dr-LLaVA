@@ -327,9 +327,9 @@ def train():
 
         data_args.image_processor = vision_tower.image_processor
         data_args.is_multimodal = True
-        model.config.mm_use_im_start_end = (
-            data_args.mm_use_im_start_end
-        ) = model_args.mm_use_im_start_end
+        model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = (
+            model_args.mm_use_im_start_end
+        )
         training_args.use_im_start_end = model_args.mm_use_im_start_end
 
     data_module = make_binary_reward_modeling_data_module(

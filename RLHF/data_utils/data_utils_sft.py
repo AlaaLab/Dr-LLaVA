@@ -244,9 +244,7 @@ def make_sft_data_module(
             except:
                 raise ValueError(f"Error loading dataset from {dataset_name}")
         else:
-            raise NotImplementedError(
-                f"Dataset {dataset_name} not implemented yet."
-            )
+            raise NotImplementedError(f"Dataset {dataset_name} not implemented yet.")
 
     def format_dataset(dataset, dataset_format):
         if dataset_format == "v1":
@@ -314,14 +312,20 @@ def make_sft_data_module(
         tokenizer=tokenizer,
     )
     return dict(
-        train_dataset=SupervisedVisionLanguageDataset(data_args, train_dataset)
-        if args.do_train
-        else None,
-        eval_dataset=SupervisedVisionLanguageDataset(data_args, eval_dataset)
-        if args.do_eval
-        else None,
-        predict_dataset=SupervisedVisionLanguageDataset(data_args, eval_dataset)
-        if args.do_predict
-        else None,
+        train_dataset=(
+            SupervisedVisionLanguageDataset(data_args, train_dataset)
+            if args.do_train
+            else None
+        ),
+        eval_dataset=(
+            SupervisedVisionLanguageDataset(data_args, eval_dataset)
+            if args.do_eval
+            else None
+        ),
+        predict_dataset=(
+            SupervisedVisionLanguageDataset(data_args, eval_dataset)
+            if args.do_predict
+            else None
+        ),
         data_collator=data_collator,
     )

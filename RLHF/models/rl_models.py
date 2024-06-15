@@ -23,7 +23,7 @@ WARNING:
 import abc
 import logging
 from typing import Dict, Optional
-import random 
+import random
 import torch
 import transformers
 import torch.nn.functional as F
@@ -96,18 +96,16 @@ class Policy(nn.Module, abc.ABC):
         return respond_outputs
 
 
-   
 class AutoregressivePolicy(Policy):
     def forward(
         self,
         queries: Tensor,
         query_attn_masks: Tensor,
         responses: Tensor,
-        AnswerQuestionMASK:Tensor,
+        AnswerQuestionMASK: Tensor,
         images: Optional[Tensor] = None,
         reward_images: Optional[Tensor] = None,
         temperature: Optional[float] = None,
-        
     ) -> Dict[str, Tensor]:
         # TODO(lxuechen): Refactor attention mask. Here query_attn_masks overrides padding-based attention mask.
 
@@ -117,18 +115,17 @@ class AutoregressivePolicy(Policy):
 
         if temperature is None:
             temperature = self.args.temperature
-        #print(queries.size())
-        #print(responses.size())
-            
-        # get First Q
-        _queries, _query_attn_masks, _images = get_first_response(queries, query_attn_masks, images)
+        # print(queries.size())
+        # print(responses.size())
 
+        # get First Q
+        _queries, _query_attn_masks, _images = get_first_response(
+            queries, query_attn_masks, images
+        )
 
         input_ids = torch.cat([_queries, responses], dim=1)
-        attention_mask = input_ids.ne(self.base_tokenizer.pad_token_id) 
+        attention_mask = input_ids.ne(self.base_tokenizer.pad_token_id)
         attention_mask[:, : _queries.size(1)] = _query_attn_masks
-        
-        
 
         # Fix position id issues and ensure consistency with `respond` for GPT and OPT.
         inputs = self.base_model.prepare_inputs_for_generation(
@@ -141,12 +138,14 @@ class AutoregressivePolicy(Policy):
         original_logits = outputs.logits[:, -self.args.response_len - 1 : -1]
         logits = original_logits / temperature
         labels = input_ids[:, -self.args.response_len :]
-        labels[AnswerQuestionMASK==self.base_tokenizer.pad_token_id] = self.base_tokenizer.pad_token_id
-        
+        labels[AnswerQuestionMASK == self.base_tokenizer.pad_token_id] = (
+            self.base_tokenizer.pad_token_id
+        )
+
         logprobs = compute_logprobs(
             logits, labels, ignore_index=self.base_tokenizer.pad_token_id
         )
-        
+
         entropies = -(logits.softmax(dim=-1) * logits.log_softmax(dim=-1)).sum(dim=-1)
         last_hidden_state = outputs.hidden_states[-1][
             :, -self.args.response_len - 1 : -1
@@ -175,20 +174,15 @@ class AutoregressivePolicy(Policy):
             + self.args.response_len
             + self.base_model.get_vision_tower().num_patches,
         )
-        
-
-        
 
         if temperature is None:
             temperature = self.args.temperature
-        
 
-        #queries, query_attn_masks, images = get_different_response(queries, query_attn_masks, images)
-        
-        _queries, _query_attn_masks, _images = get_first_response(queries, query_attn_masks, images)
-        
-        
-        
+        # queries, query_attn_masks, images = get_different_response(queries, query_attn_masks, images)
+
+        _queries, _query_attn_masks, _images = get_first_response(
+            queries, query_attn_masks, images
+        )
 
         sequences = self.base_model.generate(
             inputs=_queries,
@@ -209,73 +203,74 @@ class AutoregressivePolicy(Policy):
             synced_gpus=True,
         )
         responses = sequences[:, _queries.size(1) :]
-            
-      
-        
+
         texts = self.base_tokenizer.batch_decode(
-                responses,
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=False,
-            )
-        
-        
-        
-        encoded_input = self.base_tokenizer(texts, 
-                                            padding=True, truncation=True,
-                                            return_tensors='pt').to('cuda')
-        answers_tokens = encoded_input['input_ids']
-        answers_attention_mask = encoded_input['attention_mask']
+            responses,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )
+
+        encoded_input = self.base_tokenizer(
+            texts, padding=True, truncation=True, return_tensors="pt"
+        ).to("cuda")
+        answers_tokens = encoded_input["input_ids"]
+        answers_attention_mask = encoded_input["attention_mask"]
         together = _queries.clone()
         together_attention = _query_attn_masks.clone()
 
-        question_answers = torch.ones(answers_tokens.size())*147
+        question_answers = torch.ones(answers_tokens.size()) * 147
         random.seed()
-        _k = 6#random.sample([3,4,5,6],1)[0]
-        for i in range(2,_k):
-            s_queries, s_query_attn_masks, s_images = get_single_response(queries, query_attn_masks, images, _order=i)
+        for i in range(2, 6):
+            s_queries, s_query_attn_masks, s_images = get_single_response(
+                queries, query_attn_masks, images, _order=i
+            )
 
-            # have a AnswerQuestionMASK 
-            together = torch.cat([together, answers_tokens, s_queries],dim=1)
+            together = torch.cat([together, answers_tokens, s_queries], dim=1)
 
-            together_attention = torch.cat([together_attention, answers_attention_mask, s_query_attn_masks],dim=1)
+            together_attention = torch.cat(
+                [together_attention, answers_attention_mask, s_query_attn_masks], dim=1
+            )
 
             sequences = self.base_model.generate(
-            inputs=together,
-            images=_images,
-            attention_mask=together_attention,
-            do_sample=True,
-            max_new_tokens=100,#self.args.response_len,
-            pad_token_id=self.base_tokenizer.pad_token_id,
-            suppress_tokens=(
-                [self.base_tokenizer.eos_token_id]
-                if self.args.suppress_eos_at_generation
-                else None
-            ),
-            top_p=1.0,
-            top_k=0,
-            temperature=temperature,
-            num_return_sequences=num_return_sequences,
-            synced_gpus=True,
-        )
+                inputs=together,
+                images=_images,
+                attention_mask=together_attention,
+                do_sample=True,
+                max_new_tokens=100,  # Hack here because almost all the answers are less than even 30 tokens
+                pad_token_id=self.base_tokenizer.pad_token_id,
+                suppress_tokens=(
+                    [self.base_tokenizer.eos_token_id]
+                    if self.args.suppress_eos_at_generation
+                    else None
+                ),
+                top_p=1.0,
+                top_k=0,
+                temperature=temperature,
+                num_return_sequences=num_return_sequences,
+                synced_gpus=True,
+            )
             _responses = sequences[:, together.size(1) :]
-            
-            
-            texts = self.base_tokenizer.batch_decode(
-                    _responses,
-                    skip_special_tokens=True,
-                    clean_up_tokenization_spaces=False,
-                )
-            
-            
-            encoded_input = self.base_tokenizer(texts, 
-                                            padding=True, truncation=True,
-                                            return_tensors='pt').to('cuda')
-            answers_tokens = encoded_input['input_ids']
-            answers_attention_mask = encoded_input['attention_mask']
 
-            question_answers = torch.cat([question_answers, 
-                                          torch.ones(s_queries.size()), 
-                                          torch.ones(answers_tokens.size())*147], dim=1)
+            texts = self.base_tokenizer.batch_decode(
+                _responses,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False,
+            )
+
+            encoded_input = self.base_tokenizer(
+                texts, padding=True, truncation=True, return_tensors="pt"
+            ).to("cuda")
+            answers_tokens = encoded_input["input_ids"]
+            answers_attention_mask = encoded_input["attention_mask"]
+
+            question_answers = torch.cat(
+                [
+                    question_answers,
+                    torch.ones(s_queries.size()),
+                    torch.ones(answers_tokens.size()) * 147,
+                ],
+                dim=1,
+            )
 
         responses = sequences[:, _queries.size(1) :]
 
@@ -283,24 +278,22 @@ class AutoregressivePolicy(Policy):
 
         question_answers[question_answers == 147] = 1
 
-
         responses = right_pad(
             responses,
-            target_size=(sequences.size(0), self.args.response_len), 
+            target_size=(sequences.size(0), self.args.response_len),
             value=self.base_tokenizer.pad_token_id,
-            )
-        
+        )
+
         question_answers = right_pad(
             question_answers,
-            target_size=(sequences.size(0), self.args.response_len), 
+            target_size=(sequences.size(0), self.args.response_len),
             value=self.base_tokenizer.pad_token_id,
-            )
-        
+        )
+
         return dict(
             responses=responses,
-            AnswerQuestionMASK = question_answers,
-            num_QA=_k-1,
-
+            AnswerQuestionMASK=question_answers,
+            num_QA=5,
         )  # Size (bsz * num_return_sequences, response_len).
 
 
@@ -341,7 +334,7 @@ class AutoregressiveValue(Value):
         queries: Tensor,
         query_attn_masks: Tensor,
         responses: Tensor,
-        AQAQAQAQA:Tensor,
+        AnswerQuestionMASK: Tensor,
         images: Optional[Tensor] = None,
         reward_images: Optional[Tensor] = None,
     ) -> Dict[str, Tensor]:
@@ -349,7 +342,9 @@ class AutoregressiveValue(Value):
             self.base_model.set_adapter(self.adapter_name)
         self.base_model.config.use_cache = False
 
-        _queries, _query_attn_masks, _images = get_first_response(queries, query_attn_masks, images)
+        _queries, _query_attn_masks, _images = get_first_response(
+            queries, query_attn_masks, images
+        )
         sequences = torch.cat([_queries, responses], dim=1)
         sequence_attn_masks = sequences.ne(self.base_tokenizer.pad_token_id)
 
@@ -389,7 +384,7 @@ class ActorCritic(nn.Module):
         queries: Tensor,
         query_attn_masks: Tensor,
         responses: Tensor,
-        AQAQAQAQA:Tensor,
+        AnswerQuestionMASK: Tensor,
         images: Optional[Tensor] = None,
         reward_images: Optional[Tensor] = None,
         temperature: Optional[float] = None,
@@ -398,15 +393,32 @@ class ActorCritic(nn.Module):
         # Assume the policy and value model share the same tokenizer.
         if mode is None:
             o1 = self.policy(
-                queries, query_attn_masks, responses,AQAQAQAQA, images, reward_images, temperature
+                queries,
+                query_attn_masks,
+                responses,
+                AnswerQuestionMASK,
+                images,
+                reward_images,
+                temperature,
             )
             o2 = self.value_model(
-                queries, query_attn_masks, responses, AQAQAQAQA, images, reward_images
+                queries,
+                query_attn_masks,
+                responses,
+                AnswerQuestionMASK,
+                images,
+                reward_images,
             )
 
         elif mode == "policy":
             o1 = self.policy(
-                queries, query_attn_masks, responses, AQAQAQAQA,images, reward_images, temperature
+                queries,
+                query_attn_masks,
+                responses,
+                AnswerQuestionMASK,
+                images,
+                reward_images,
+                temperature,
             )
             # Add dummy loss to make sure every parameter is used in the backward pass.
             o2 = {
@@ -423,7 +435,12 @@ class ActorCritic(nn.Module):
             }
         elif mode == "value":
             o2 = self.value_model(
-                queries, query_attn_masks, responses,AQAQAQAQA, images, reward_images
+                queries,
+                query_attn_masks,
+                responses,
+                AnswerQuestionMASK,
+                images,
+                reward_images,
             )
             # Add dummy loss to make sure every parameter is used in the backward pass.
             o1 = {
@@ -485,6 +502,7 @@ def make_value_with_base_model(
             args, base_model, base_tokenizer, adapter_name=adapter_name
         )
 
+
 def pad_and_stack_tensors(tensor_list, target_size=256):
     """
     Pads and stacks a list of 1D tensors to a specified size.
@@ -498,165 +516,166 @@ def pad_and_stack_tensors(tensor_list, target_size=256):
     """
     padded_tensors = []
 
-
     for tensor in tensor_list:
 
         # Calculate the padding size
-        
+
         padding_size = max(0, target_size - tensor.size(1))
 
         # Pad the tensor and add it to the list
-        padded_tensor = F.pad(tensor, (padding_size,0))
+        padded_tensor = F.pad(tensor, (padding_size, 0))
         padded_tensors.append(padded_tensor)
 
     # Stack all the padded tensors
     stacked_tensor = torch.stack(padded_tensors, dim=0)
-    stacked_tensor= stacked_tensor.squeeze(1)
-    
+    stacked_tensor = stacked_tensor.squeeze(1)
 
     return stacked_tensor
 
 
-
-
-def get_first_response(queries, queries_attention_mask, images, ):
-    assert queries.shape[0] == queries_attention_mask.shape[0] == images.shape[0], 'the dimension does not match with each other'
+def get_first_response(
+    queries,
+    queries_attention_mask,
+    images,
+):
+    assert (
+        queries.shape[0] == queries_attention_mask.shape[0] == images.shape[0]
+    ), "the dimension does not match with each other"
     final_queries_list = []
     final_attention_list = []
     final_image_stacks = []
-    for _index  in range(queries.shape[0]):
-        split_indices = (queries[_index] == 29871).nonzero(as_tuple=True)[0]     
+    for _index in range(queries.shape[0]):
+        split_indices = (queries[_index] == 29871).nonzero(as_tuple=True)[0]
         start_idx = 0
         p = 0
-        
+
         promt_and_image = []
-        question_list = []
 
         attention_promt_and_image = []
-        attention_question_list = []
 
         prepare_question_attention_list = []
         prepare_question_list = []
-        
+
         for idx in split_indices:
-            
-            if p <=1:
-                
-                    
-                promt_and_image.append(queries[_index][start_idx:idx+1])
-                attention_promt_and_image.append(queries_attention_mask[_index][start_idx:idx+1])
-                        # Slice the tensor from the current start index to the current 29871 index
-                p+=1
+
+            if p <= 1:
+
+                promt_and_image.append(queries[_index][start_idx : idx + 1])
+                attention_promt_and_image.append(
+                    queries_attention_mask[_index][start_idx : idx + 1]
+                )
+                # Slice the tensor from the current start index to the current 29871 index
+                p += 1
                 start_idx = idx + 1
 
-                if p ==2:
+                if p == 2:
                     prompt = torch.cat(promt_and_image)
                     attention_prompt = torch.cat(attention_promt_and_image)
             else:
-                prepare_question_list.append(torch.cat([prompt, queries[_index][start_idx:idx]]))
-                prepare_question_attention_list.append(torch.cat([attention_prompt,queries_attention_mask[_index][start_idx:idx]]))
+                prepare_question_list.append(
+                    torch.cat([prompt, queries[_index][start_idx:idx]])
+                )
+                prepare_question_attention_list.append(
+                    torch.cat(
+                        [
+                            attention_prompt,
+                            queries_attention_mask[_index][start_idx:idx],
+                        ]
+                    )
+                )
                 start_idx = idx + 1
-                p = p+1
+                p = p + 1
                 break
-        
-        #prepare_question_list.append(torch.cat([prompt,queries[_index][start_idx:]]))
-        #prepare_question_attention_list.append(torch.cat([attention_prompt,queries_attention_mask[_index][start_idx:]]))
-        
-        
+
+        # prepare_question_list.append(torch.cat([prompt,queries[_index][start_idx:]]))
+        # prepare_question_attention_list.append(torch.cat([attention_prompt,queries_attention_mask[_index][start_idx:]]))
+
         length = prepare_question_list[0].size(0)
         prepare_question = prepare_question_list[0].view(1, length)
         prepare_question_attention = prepare_question_attention_list[0].view(1, length)
 
-        
         unsqueezed_tensor = images[_index].unsqueeze(0)
         _images = unsqueezed_tensor.repeat(len(prepare_question_list), 1, 1, 1)
         final_image_stacks.append(_images)
         final_queries_list.append(prepare_question)
         final_attention_list.append(prepare_question_attention)
 
-    
-
-    images = torch.cat(final_image_stacks, axis = 0) 
-    #print('Largest tensor size')
-    #print(max([x.size(1) for x in final_queries_list ]))
-    queries = pad_and_stack_tensors(final_queries_list,target_size=max([x.size(1) for x in final_queries_list]))
-    
-    attentions = pad_and_stack_tensors(final_attention_list,target_size=max([x.size(1) for x in final_attention_list]))
-    
+    images = torch.cat(final_image_stacks, axis=0)
+    queries = pad_and_stack_tensors(
+        final_queries_list, target_size=max([x.size(1) for x in final_queries_list])
+    )
+    attentions = pad_and_stack_tensors(
+        final_attention_list, target_size=max([x.size(1) for x in final_attention_list])
+    )
     return queries, attentions, images
 
-def get_single_response(queries, queries_attention_mask, images,_order =None):
-    assert queries.shape[0] == queries_attention_mask.shape[0] == images.shape[0], 'the dimension does not match with each other'
+
+def get_single_response(queries, queries_attention_mask, images, _order=None):
+    assert (
+        queries.shape[0] == queries_attention_mask.shape[0] == images.shape[0]
+    ), "the dimension does not match with each other"
     final_queries_list = []
     final_attention_list = []
     final_image_stacks = []
-    for _index  in range(queries.shape[0]):
-        split_indices = (queries[_index] == 29871).nonzero(as_tuple=True)[0]     
+    for _index in range(queries.shape[0]):
+        split_indices = (queries[_index] == 29871).nonzero(as_tuple=True)[0]
         start_idx = 0
         p = 0
-        
+
         promt_and_image = []
-        question_list = []
 
         attention_promt_and_image = []
-        attention_question_list = []
-
-
-
-
         prepare_question_attention_list = []
         prepare_question_list = []
         final_case = False
         for idx in split_indices:
-            
-            if p <=1:
-                
-                    
-                promt_and_image.append(queries[_index][start_idx:idx+1])
-                attention_promt_and_image.append(queries_attention_mask[_index][start_idx:idx+1])
-                        # Slice the tensor from the current start index to the current 29871 index
-                p+=1
+
+            if p <= 1:
+
+                promt_and_image.append(queries[_index][start_idx : idx + 1])
+                attention_promt_and_image.append(
+                    queries_attention_mask[_index][start_idx : idx + 1]
+                )
+                # Slice the tensor from the current start index to the current 29871 index
+                p += 1
                 start_idx = idx + 1
 
-                if p ==2:
-                    prompt = torch.cat(promt_and_image)
-                    attention_prompt = torch.cat(attention_promt_and_image)
             else:
-                if p ==_order+1:
+                if p == _order + 1:
                     prepare_question_list.append(queries[_index][start_idx:idx])
-                    prepare_question_attention_list.append(queries_attention_mask[_index][start_idx:idx])
+                    prepare_question_attention_list.append(
+                        queries_attention_mask[_index][start_idx:idx]
+                    )
                     final_case = False
                     break
                 start_idx = idx + 1
-                p = p+1
+                p = p + 1
                 final_case = True
-            
-                
+
         if final_case:
-            assert len(prepare_question_list) ==0, 'shall be empty'
+            assert len(prepare_question_list) == 0, "shall be empty"
             prepare_question_list.append(queries[_index][start_idx:])
-            prepare_question_attention_list.append(queries_attention_mask[_index][start_idx:])
-        
-        
+            prepare_question_attention_list.append(
+                queries_attention_mask[_index][start_idx:]
+            )
+
         length = prepare_question_list[0].size(0)
         prepare_question = prepare_question_list[0].view(1, length)
         prepare_question_attention = prepare_question_attention_list[0].view(1, length)
 
-       
-
-        
         unsqueezed_tensor = images[_index].unsqueeze(0)
         _images = unsqueezed_tensor.repeat(len(prepare_question_list), 1, 1, 1)
         final_image_stacks.append(_images)
         final_queries_list.append(prepare_question)
         final_attention_list.append(prepare_question_attention)
 
-    #images = torch.cat(final_image_stacks, axis = 0) 
-    #queries = torch.cat(final_queries_list,  axis = 0)
-    #attentions = torch.cat(final_attention_list, axis = 0)
-    images = torch.cat(final_image_stacks, axis = 0) 
-    queries = pad_and_stack_tensors(final_queries_list,target_size=max([x.size(1) for x in final_queries_list]))
-    
-    attentions = pad_and_stack_tensors(final_attention_list,target_size=max([x.size(1) for x in final_attention_list]))
+    images = torch.cat(final_image_stacks, axis=0)
+    queries = pad_and_stack_tensors(
+        final_queries_list, target_size=max([x.size(1) for x in final_queries_list])
+    )
 
-    return queries, attentions, images 
+    attentions = pad_and_stack_tensors(
+        final_attention_list, target_size=max([x.size(1) for x in final_attention_list])
+    )
+
+    return queries, attentions, images

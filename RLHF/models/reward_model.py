@@ -27,11 +27,20 @@ from transformers.trainer_utils import EvalPrediction
 from transformers.utils.generic import ModelOutput
 import pandas as pd
 import math
+
 # Set the display options
-pd.set_option('display.max_rows', None)  # Replace None with a specific number if you want to limit the rows
-pd.set_option('display.max_columns', None)  # Replace None with a specific number if you want to limit the columns
-pd.set_option('display.width', None)  # This will try to use the maximum width of your console
-pd.set_option('display.max_colwidth', None)  # -1 means unlimited column width, but be cautious as very long text might make the display unwieldy
+pd.set_option(
+    "display.max_rows", None
+)  # Replace None with a specific number if you want to limit the rows
+pd.set_option(
+    "display.max_columns", None
+)  # Replace None with a specific number if you want to limit the columns
+pd.set_option(
+    "display.width", None
+)  # This will try to use the maximum width of your console
+pd.set_option(
+    "display.max_colwidth", None
+)  # -1 means unlimited column width, but be cautious as very long text might make the display unwieldy
 
 from peft import PeftModel, LoraModel, LoraConfig
 
@@ -40,17 +49,16 @@ from models.qlora_model import get_accelerate_model
 from llava.model import *
 
 import spacy
-import pickle  
+import pickle
 import numpy as np
 
 
 def load_reword_model():
-    
+
     rf_model = Rule_Based_Classifier()
-    
-    
+
     return rf_model
-    
+
 
 def unpack_dict(
     d: Dict, keys: Sequence[str], return_type: type = tuple
@@ -132,9 +140,11 @@ def get_transformer_hidden_size(model: transformers.PreTrainedModel):
         # Hack to deal with the fact that transformers library changed the LLaMA model name.
         llama_cls = getattr(
             transformers,
-            "LLaMAForCausalLM"
-            if hasattr(transformers, "LLaMAForCausalLM")
-            else "LlamaForCausalLM",
+            (
+                "LLaMAForCausalLM"
+                if hasattr(transformers, "LLaMAForCausalLM")
+                else "LlamaForCausalLM"
+            ),
         )
         if isinstance(model, llama_cls) or "LlamaForCausalLM" in str(type(model)):
             hidden_size_attr_name = "hidden_size"
@@ -420,6 +430,7 @@ def exist_in_sentence(sentence, keywords):
             return True
     return False
 
+
 def no_exist_in_sentence(sentence, keywords):
     # check if keywords exist in the sentence
     # sentence: a string
@@ -429,17 +440,19 @@ def no_exist_in_sentence(sentence, keywords):
             return False
     return True
 
+
 class Rule_Based_Classifier:
     """
     A classifier that uses rule-based methods to analyze and classify medical diagnosis data.
     """
+
     def __init__(self):
         self.knowledge = {
-            'NORMAL': [True, 'adequate', 'normal', 'no abnormality', 'normal'],
-            'AML': [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
-            'MM': [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
-            'BLOOD': [False, 'blood', 'inadequate', 'inadequate', 'inadequate'],
-            'CLOT': [False, 'clot', 'inadequate', 'inadequate', 'inadequate']
+            "NORMAL": [True, "adequate", "normal", "no abnormality", "normal"],
+            "AML": [True, "adequate", "abnormal", "myeloblasts", "AML"],
+            "MM": [True, "adequate", "abnormal", "plasma cells", "MM"],
+            "BLOOD": [False, "blood", "inadequate", "inadequate", "inadequate"],
+            "CLOT": [False, "clot", "inadequate", "inadequate", "inadequate"],
         }
 
     def _get_method(self, index):
@@ -451,7 +464,7 @@ class Rule_Based_Classifier:
             2: self._image_analysis,
             3: self._pathology_analysis,
             4: self._detailed_abnormality_reasoning,
-            5: self._diagnosis
+            5: self._diagnosis,
         }
         return method_dict.get(index, None)  # Returns None if index is not found
 
@@ -459,102 +472,176 @@ class Rule_Based_Classifier:
     # the 5 question cover 5 aspects
     # Low quality detection; Image overall analysis; Pathology abnormality analysis;Detailed abnormality reasoning; Diagnosis
     def _check_quality(self, sentences):
-        sentences = sentences.lower()  #This pathological image segment cannot be adequately utilized for accurate medical diagnosis
+        sentences = (
+            sentences.lower()
+        )  # This pathological image segment cannot be adequately utilized for accurate medical diagnosis
         # True, mean it is the good quality
-        if exist_in_sentence(sentences, ['effective', 'appropriate', 'suit','apt ','optimal']) and no_exist_in_sentence(sentences, [' not ', ' no ', ' inadequate ',' unsuitable' ]):
+        if exist_in_sentence(
+            sentences, ["effective", "appropriate", "suit", "apt ", "optimal"]
+        ) and no_exist_in_sentence(
+            sentences, [" not ", " no ", " inadequate ", " unsuitable"]
+        ):
             return True
-        elif exist_in_sentence(sentences, ['cannot', 'not', 'no', 'inadequate','unsuitable']):
+        elif exist_in_sentence(
+            sentences, ["cannot", "not", "no", "inadequate", "unsuitable"]
+        ):
             return False
         else:
-            return  'no match'
-    
+            return "no match"
+
     def _image_analysis(self, sentences):
-        sentences = sentences.lower() 
+        sentences = sentences.lower()
         # there are three conditions: blood, clot and adequate
-        if exist_in_sentence(sentences, ['optimal', 'advantageous', 'suitable', 'adequate','well', 'prime']) and \
-           exist_in_sentence(sentences, ['close to', 'near', 'close', 'adjacent', 'proximity','vicinity','proximate']):
-            return 'adequate'
-        
-        elif exist_in_sentence(sentences, ['blood', 'rbc','rbcs']):
-            return 'blood'
-        
-        elif no_exist_in_sentence(sentences, ['close to', 'near', 'close', 'adjacent', 'proximity to','vicinity']) and \
-             exist_in_sentence(sentences, ['unsuit', 'hinder','less', 'negative', 'adverse']) and \
-                exist_in_sentence(sentences, ['particles']):
-            return 'clot'
+        if exist_in_sentence(
+            sentences,
+            ["optimal", "advantageous", "suitable", "adequate", "well", "prime"],
+        ) and exist_in_sentence(
+            sentences,
+            [
+                "close to",
+                "near",
+                "close",
+                "adjacent",
+                "proximity",
+                "vicinity",
+                "proximate",
+            ],
+        ):
+            return "adequate"
+
+        elif exist_in_sentence(sentences, ["blood", "rbc", "rbcs"]):
+            return "blood"
+
+        elif (
+            no_exist_in_sentence(
+                sentences,
+                ["close to", "near", "close", "adjacent", "proximity to", "vicinity"],
+            )
+            and exist_in_sentence(
+                sentences, ["unsuit", "hinder", "less", "negative", "adverse"]
+            )
+            and exist_in_sentence(sentences, ["particles"])
+        ):
+            return "clot"
         else:
-            return  'no match'
+            return "no match"
 
     def _pathology_analysis(self, sentences):
-        sentences = sentences.lower() 
+        sentences = sentences.lower()
         # there are two conditions: normal and abnormal and inadequate
-        if exist_in_sentence(sentences, ['malig', 'cancer',' disorder']):
-            return 'abnormal'
-        elif exist_in_sentence(sentences, ['medical','illne']) and exist_in_sentence(sentences, ['display']):
-            return 'abnormal'
-        elif exist_in_sentence(sentences, [ ' normal', 'no abnormali']): 
-            return 'normal'
-        elif exist_in_sentence(sentences, ['inadequate', 'impossible', 'low-quality', 'low quality','unclear ','unsuitable','insufficient']):
-            return 'inadequate'
-        elif exist_in_sentence(sentences, ['quality']) and exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate','subpar']):
-            return 'inadequate'
+        if exist_in_sentence(sentences, ["malig", "cancer", " disorder"]):
+            return "abnormal"
+        elif exist_in_sentence(sentences, ["medical", "illne"]) and exist_in_sentence(
+            sentences, ["display"]
+        ):
+            return "abnormal"
+        elif exist_in_sentence(sentences, [" normal", "no abnormali"]):
+            return "normal"
+        elif exist_in_sentence(
+            sentences,
+            [
+                "inadequate",
+                "impossible",
+                "low-quality",
+                "low quality",
+                "unclear ",
+                "unsuitable",
+                "insufficient",
+            ],
+        ):
+            return "inadequate"
+        elif exist_in_sentence(sentences, ["quality"]) and exist_in_sentence(
+            sentences, ["low", "poor", "insuffici", "inadequate", "subpar"]
+        ):
+            return "inadequate"
         else:
-            return  'no match'
+            return "no match"
 
     def _detailed_abnormality_reasoning(self, sentences):
-        sentences = sentences.lower() 
-        if exist_in_sentence(sentences, ['plasma','plasma']):
-            return 'plasma cells'
-        elif exist_in_sentence(sentences, ['myeloblast', 'myeloblast']):
-            return 'myeloblasts'
-        elif exist_in_sentence(sentences, ['quality']) and (exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate', 'insufficient']) or \
-                                                            exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent'])):
-            return 'inadequate'
-        elif exist_in_sentence(sentences, ['quality']) and (exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate', 'insufficient']) or \
-                                                            exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent'])):
-            return 'inadequate'
-        elif exist_in_sentence(sentences, ['no ', 'not', 'devoid', 'free', 'absent' ,'absence']):
-            return 'no abnormality'
+        sentences = sentences.lower()
+        if exist_in_sentence(sentences, ["plasma", "plasma"]):
+            return "plasma cells"
+        elif exist_in_sentence(sentences, ["myeloblast", "myeloblast"]):
+            return "myeloblasts"
+        elif exist_in_sentence(sentences, ["quality"]) and (
+            exist_in_sentence(
+                sentences, ["low", "poor", "insuffici", "inadequate", "insufficient"]
+            )
+            or exist_in_sentence(sentences, ["not", "no ", "devoid", "free", "absent"])
+        ):
+            return "inadequate"
+        elif exist_in_sentence(sentences, ["quality"]) and (
+            exist_in_sentence(
+                sentences, ["low", "poor", "insuffici", "inadequate", "insufficient"]
+            )
+            or exist_in_sentence(sentences, ["not", "no ", "devoid", "free", "absent"])
+        ):
+            return "inadequate"
+        elif exist_in_sentence(
+            sentences, ["no ", "not", "devoid", "free", "absent", "absence"]
+        ):
+            return "no abnormality"
         else:
-            return  'no match'
+            return "no match"
 
     def _diagnosis(self, sentences):
-        sentences = sentences.lower() 
-        if (exist_in_sentence(sentences, ['blood cancer']) and \
-                exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent', 'absence']) and \
-                   no_exist_in_sentence(sentences, [' quality'])) or exist_in_sentence(sentences, [' healthy']):
-            return 'normal'
-        elif exist_in_sentence(sentences, ['multiple myeloma', 'multiple myeloma', 'mm']):
-            return 'MM'
-        elif exist_in_sentence(sentences, ['acute myeloid leukemia', 'acute myeloid leukemia', 'aml']):
-            return 'AML'
+        sentences = sentences.lower()
+        if (
+            exist_in_sentence(sentences, ["blood cancer"])
+            and exist_in_sentence(
+                sentences, ["not", "no ", "devoid", "free", "absent", "absence"]
+            )
+            and no_exist_in_sentence(sentences, [" quality"])
+        ) or exist_in_sentence(sentences, [" healthy"]):
+            return "normal"
+        elif exist_in_sentence(
+            sentences, ["multiple myeloma", "multiple myeloma", "mm"]
+        ):
+            return "MM"
+        elif exist_in_sentence(
+            sentences, ["acute myeloid leukemia", "acute myeloid leukemia", "aml"]
+        ):
+            return "AML"
 
-        elif exist_in_sentence(sentences, 'quality') and (exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate', 'insufficient']) or \
-                                                            exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent'])):
-            return 'inadequate'
-       
-        elif exist_in_sentence(sentences, ['blood cancer',]): 
-            return 'cancer'
+        elif exist_in_sentence(sentences, "quality") and (
+            exist_in_sentence(
+                sentences, ["low", "poor", "insuffici", "inadequate", "insufficient"]
+            )
+            or exist_in_sentence(sentences, ["not", "no ", "devoid", "free", "absent"])
+        ):
+            return "inadequate"
+
+        elif exist_in_sentence(
+            sentences,
+            [
+                "blood cancer",
+            ],
+        ):
+            return "cancer"
         else:
-            return  'no match'
-    
-    def calculate_reward(self, sentences,  return_dict=True, device =None, ref_answers=None,
-    categories=None):
+            return "no match"
+
+    def calculate_reward(
+        self,
+        sentences,
+        return_dict=True,
+        device=None,
+        ref_answers=None,
+        categories=None,
+    ):
         """
         This function is used to calculate the accumulated reward for a series of sentences
         """
         outcomes = []
         gt = []
         # sort the sentences and ref_answers by categories
-        
-        
+
         for sentence, category in zip(sentences, categories):
             method = self._get_method(category)
             if not method:
                 raise ValueError(f"No method found for category {category}")
             outcome = method(sentence)
             outcomes.append(outcome)
-        
 
         for ref_answer, category in zip(ref_answers, categories):
             method = self._get_method(category)
@@ -563,17 +650,29 @@ class Rule_Based_Classifier:
             gt_result = method(ref_answer)
             gt.append(gt_result)
 
-        correct_bonus = [1 if x == y else -0.5 if x == 'no match' else 0 for x, y in zip(outcomes, gt)]
+        correct_bonus = [
+            1 if x == y else -0.5 if x == "no match" else 0
+            for x, y in zip(outcomes, gt)
+        ]
         align_bonus = []
-        for i in range(1,len(categories)):
-            res = [[self.knowledge[key][categories[x]-1] for x in [i-1,i]] for key in self.knowledge.keys()]
-            if outcomes[i-1: i+1] in res:
+        for i in range(1, len(categories)):
+            res = [
+                [self.knowledge[key][categories[x] - 1] for x in [i - 1, i]]
+                for key in self.knowledge.keys()
+            ]
+            if outcomes[i - 1 : i + 1] in res:
                 align_bonus.append(1)
             else:
                 align_bonus.append(0)
         # length_bonus is calculated if the length of the outcomes is the same as the length of the ref_answers has more than 10 letters difference
-        length_bonus = [ - math.abs(len(x)-len(y))/10 if (math.abs(len(x)-len(y))/10)>1 else 0 for x, y in zip(outcomes, gt)]
+        length_bonus = [
+            (
+                -math.abs(len(x) - len(y)) / 10
+                if (math.abs(len(x) - len(y)) / 10) > 1
+                else 0
+            )
+            for x, y in zip(outcomes, gt)
+        ]
         # calculate the total bonus
         bonus = sum(correct_bonus) + sum(align_bonus) + sum(length_bonus)
         return RewardModelOutput(rewards=bonus) if return_dict else (None,)
-        

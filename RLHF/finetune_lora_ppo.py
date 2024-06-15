@@ -456,8 +456,8 @@ def train():
 
     tokenizer_model_name = args.base_model_name
     TokenizerClass = AutoTokenizer
-    #print(tokenizer_model_name)
-    #asdcsvcc
+    # print(tokenizer_model_name)
+    # asdcsvcc
 
     # Tokenizer
     tokenizer = TokenizerClass.from_pretrained(
@@ -481,8 +481,8 @@ def train():
 
     if model_args.vision_tower is not None:
         from llava.model import LlavaLlamaForCausalLM
+
         print(model_args.base_model_name)
-        
 
         with DisableLogger():
             base_model = LlavaLlamaForCausalLM.from_pretrained(
@@ -493,7 +493,7 @@ def train():
         vision_tower = base_model.get_vision_tower()
         if not vision_tower.is_loaded:
             vision_tower.load_model()
-        
+
         data_args.image_processor = vision_tower.image_processor
         del base_model
 
@@ -524,16 +524,15 @@ def train():
     if accelerator.is_main_process:
         training_data = data_module["train_dataset"]
         for i in range(3):
-            
+
             print(training_data[i]["queries"])
-            
-            
+
             ex_input_ids_0 = training_data[i]["queries"]
             rank0_print(ex_input_ids_0[ex_input_ids_0 != tokenizer.pad_token_id])
             ex_input_ids_0[ex_input_ids_0 == IMAGE_TOKEN_INDEX] = tokenizer.eos_token_id
             rank0_print(tokenizer.decode(ex_input_ids_0, skip_special_tokens=False))
             rank0_print("=" * 20)
-     
+
     rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     node_id = rank // torch.cuda.device_count()
@@ -557,12 +556,11 @@ def train():
     )
 
     trainer.train(
-        resume_training_ckpt=checkpoint_dir
-        if training_args.resume_from_training
-        else None
+        resume_training_ckpt=(
+            checkpoint_dir if training_args.resume_from_training else None
+        )
     )
 
 
 if __name__ == "__main__":
     train()
-

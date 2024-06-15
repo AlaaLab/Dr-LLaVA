@@ -5,7 +5,10 @@ import json
 from tqdm import tqdm
 import shortuuid
 import sys
-sys.path.append('/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/')
+
+sys.path.append(
+    "/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/"
+)
 from llava.constants import (
     IMAGE_TOKEN_INDEX,
     DEFAULT_IMAGE_TOKEN,
@@ -103,18 +106,18 @@ def eval_model(args):
     ]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
     answers_file = os.path.expanduser(args.answers_file)
-    
+
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
-    # 
-    # making sure it is conversation based communication 
+    #
+    # making sure it is conversation based communication
     length = len(questions)
-    
-    num_images = int(length/5)
-    questions = [questions[5*x:5*(x+1)] for x in range(num_images)]
-    
+
+    num_images = int(length / 5)
+    questions = [questions[5 * x : 5 * (x + 1)] for x in range(num_images)]
+
     for line_chunks in tqdm(questions):
-        assert len(line_chunks)==5, 'this number should be 5'
+        assert len(line_chunks) == 5, "this number should be 5"
         conv = conv_templates[args.conv_mode].copy()
         p = 0
         for line in line_chunks:
@@ -122,7 +125,7 @@ def eval_model(args):
             image_file = line["image"]
             # image_file = 'COCO_val2014_' + image_file
             qs = line["text"]
-            cur_prompt = qs.split('. ')[-1]
+            cur_prompt = qs.split(". ")[-1]
             if model.config.mm_use_im_start_end:
                 qs = (
                     DEFAULT_IM_START_TOKEN
@@ -132,29 +135,26 @@ def eval_model(args):
                     + qs
                 )
             else:
-                if p ==0:
+                if p == 0:
                     qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
                 else:
                     qs = qs
             if args.test_prompt:
                 qs += args.test_prompt
-            
+
             conv.append_message(conv.roles[0], qs)
             conv.append_message(conv.roles[1], None)
             prompt = conv.get_prompt(p=p)
-            
-            input_ids = (
-                    tokenizer_image_token(
-                        prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
-                    )
-                    .unsqueeze(0)
-                    .cuda()
-                )
-            
-            
-            
 
-            if p ==0:
+            input_ids = (
+                tokenizer_image_token(
+                    prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+                )
+                .unsqueeze(0)
+                .cuda()
+            )
+
+            if p == 0:
                 image = Image.open(os.path.join(args.image_folder, image_file))
                 if args.image_aspect_ratio == "pad":
                     image = image.convert("RGB")
@@ -165,11 +165,15 @@ def eval_model(args):
                         if width == height:
                             return pil_img
                         elif width > height:
-                            result = Image.new(pil_img.mode, (width, width), background_color)
+                            result = Image.new(
+                                pil_img.mode, (width, width), background_color
+                            )
                             result.paste(pil_img, (0, (width - height) // 2))
                             return result
                         else:
-                            result = Image.new(pil_img.mode, (height, height), background_color)
+                            result = Image.new(
+                                pil_img.mode, (height, height), background_color
+                            )
                             result.paste(pil_img, ((height - width) // 2, 0))
                             return result
 
@@ -179,7 +183,7 @@ def eval_model(args):
                 image_tensor = image_processor.preprocess(image, return_tensors="pt")[
                     "pixel_values"
                 ][0]
-                p+=1
+                p += 1
 
             stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
             keywords = [stop_str]
@@ -215,8 +219,8 @@ def eval_model(args):
             outputs = outputs.strip()
             if outputs.endswith(stop_str):
                 outputs = outputs[: -len(stop_str)]
-            
-            outputs = outputs#.strip()
+
+            outputs = outputs  # .strip()
             conv.messages[-1][-1] = outputs
 
             ans_id = shortuuid.uuid()

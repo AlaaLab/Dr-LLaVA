@@ -5,7 +5,10 @@ import json
 from tqdm import tqdm
 import shortuuid
 import sys
-sys.path.append('/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/')
+
+sys.path.append(
+    "/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/LLaVA-RLHF/llava_setup/LLaVA/"
+)
 from llava.constants import (
     IMAGE_TOKEN_INDEX,
     DEFAULT_IMAGE_TOKEN,
@@ -103,16 +106,16 @@ def eval_model(args):
     ]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
     answers_file = os.path.expanduser(args.answers_file)
-    
+
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
-    # 
+    #
     for line in tqdm(questions):
         idx = line["question_id"]
         image_file = line["image"]
         # image_file = 'COCO_val2014_' + image_file
         qs = line["text"]
-        cur_prompt = qs.split('. ')[-1]
+        cur_prompt = qs.split(". ")[-1]
         if model.config.mm_use_im_start_end:
             qs = (
                 DEFAULT_IM_START_TOKEN

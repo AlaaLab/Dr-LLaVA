@@ -64,6 +64,6 @@ if __name__ == "__main__":
             stats = [round(x, 3) for x in stats]
             # print(k, stats, round(stats[1]/stats[0]*100, 1))
             print(k, round(stats[1] / stats[0] * 100, 1))
-            print_out.append( str( round(stats[1] / stats[0] * 100, 1) ) )
+            print_out.append(str(round(stats[1] / stats[0] * 100, 1)))
         print(",".join(print_out))
         print("=================================")

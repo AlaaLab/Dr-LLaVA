@@ -2,6 +2,7 @@ import os
 import requests
 from huggingface_hub import HfApi, hf_hub_url, HfFolder
 
+
 # Function to download all files from a model repository
 def download_model_files(model_repo_name, local_directory):
     # Create local directory if it does not exist
@@ -33,7 +34,7 @@ def download_model_files(model_repo_name, local_directory):
         local_file_path = os.path.join(local_directory, file)
 
         # Open the file and write to it in chunks
-        with open(local_file_path, 'wb') as local_file:
+        with open(local_file_path, "wb") as local_file:
             for chunk in response.iter_content(chunk_size=8192):
                 local_file.write(chunk)
 
@@ -41,9 +42,9 @@ def download_model_files(model_repo_name, local_directory):
 
 
 # Replace 'your_model_name' with the actual model name on Hugging Face
-model_name = 'liuhaotian/llava-v1.5-7b'
+model_name = "liuhaotian/llava-v1.5-7b"
 # Replace 'local_folder_path' with the path to the local directory where you want to download the files
-local_folder = 'llava-v1.5-7b'
+local_folder = "llava-v1.5-7b"
 
 # Run the function to download the model
 download_model_files(model_name, local_folder)

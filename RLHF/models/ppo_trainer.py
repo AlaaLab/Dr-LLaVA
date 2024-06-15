@@ -30,7 +30,8 @@ import pandas as pd
 import torch
 import tqdm
 import transformers
-#from models.rl_models import get_different_response
+
+# from models.rl_models import get_different_response
 from peft.utils import WEIGHTS_NAME, get_peft_model_state_dict
 
 from llava.constants import (
@@ -46,7 +47,6 @@ from data_utils.data_utils_ppo import QueryResponseDataset
 import data_utils.common_utils as common_utils
 
 from data_utils.constants import AnswerType, FACTUAL_PROMPT
-
 
 
 import models.rl_models as rl_models
@@ -85,7 +85,6 @@ VALUE_HEAD_NAME = "value_head.pt"
 SCALER_NAME = "scaler.pt"
 
 
-    
 class PPOTrainer(RLTrainer):
     def __init__(
         self,
@@ -121,8 +120,8 @@ class PPOTrainer(RLTrainer):
         responses: torch.Tensor,
         logprobs: torch.Tensor,
         ref_logprobs: torch.Tensor,
-        #length_bonus: torch.Tensor,
-        #correct_bonus: torch.Tensor,
+        # length_bonus: torch.Tensor,
+        # correct_bonus: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         # For some reason, line below doesn't work.
         # kl = (logits.softmax(dim=-1) * (logits.log_softmax(dim=-1) - ref_logits.log_softmax(dim=-1))).sum(dim=-1)
@@ -141,11 +140,10 @@ class PPOTrainer(RLTrainer):
         non_score_rewards = -self.kl_ctl.value * kl
         shaped_rewards = non_score_rewards.clone()
 
-
         shaped_rewards[:, -1] += (
             rewards.squeeze()
-            #+ (length_bonus * self.args.length_bonus_score)
-            #+ (correct_bonus * self.args.correct_bonus_score)
+            # + (length_bonus * self.args.length_bonus_score)
+            # + (correct_bonus * self.args.correct_bonus_score)
             + self.args.reward_bias
         )
 
@@ -167,12 +165,11 @@ class PPOTrainer(RLTrainer):
             )
         else:
             rewards = rewards * 10.0
-        
+
         lastgaelam = 0
         advantages_reversed = []
-        gen_length = self.args.response_len 
+        gen_length = self.args.response_len
 
-        
         for t in reversed(range(gen_length)):
             nextvalues = values[:, t + 1] if t < gen_length - 1 else 0.0
             delta = rewards[:, t] + self.args.gamma * nextvalues - values[:, t]
@@ -187,7 +184,6 @@ class PPOTrainer(RLTrainer):
 
     @torch.inference_mode()
     def rollout(self, queries_data) -> Dict[str, torch.Tensor]:
-
         """Rollout trajectories with policy.
 
         Args:
@@ -201,8 +197,7 @@ class PPOTrainer(RLTrainer):
                 'rewards', 'non_score_rewards', 'shaped_rewards'.
         """
         # Give up dropout throughout.
-        
-        
+
         self.policy.eval()
         # `keep_fp32_wrapper` retains the autocast wrapper of model.forward created by accelerate:
         #  recall one sets mixed precision options with accelerator.
@@ -249,7 +244,6 @@ class PPOTrainer(RLTrainer):
                     "diagnosis",
                 ),
             )
-            
 
             if self.args.bf16:
                 images = images.to(torch.bfloat16)
@@ -261,29 +255,27 @@ class PPOTrainer(RLTrainer):
             respond_outputs = unwrapped_policy.respond(
                 queries, query_attn_masks, images, temperature=self.args.temperature
             )
-            
-            
-            
-            (responses, question_masks, num_QA) = common_utils.unpack_dict(respond_outputs, ("responses",'AnswerQuestionMASK', 'num_QA',))
 
-
-            
-            
+            (responses, question_masks, num_QA) = common_utils.unpack_dict(
+                respond_outputs,
+                (
+                    "responses",
+                    "AnswerQuestionMASK",
+                    "num_QA",
+                ),
+            )
 
             additional_token1 = self.tokenizer.encode("?", add_special_tokens=False)[0]
             assert additional_token1 == 1577
 
             additional_token2 = self.tokenizer.encode("\n?")[-1]
             assert additional_token2 == 29973
-            
+
             text_responses = self.tokenizer.batch_decode(
                 responses,
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=False,
             )
-            
-            
-            
 
             rollouts_batch = {
                 "images": images,
@@ -291,11 +283,9 @@ class PPOTrainer(RLTrainer):
                 "queries": queries,
                 "query_attn_masks": query_attn_masks,
                 "responses": responses,
-                "AQAQAQAQA":question_masks,
-                
+                "AQAQAQAQA": question_masks,
             }
-            
-            
+
             # Evaluate logprobs of the samples.
             batch_size_per_device = rollouts_batch["responses"].shape[0]
             sub_batch_size = self.args.reward_model_per_device_batch_size
@@ -303,7 +293,7 @@ class PPOTrainer(RLTrainer):
                 policy_outputs = self.policy(
                     **rollouts_batch, temperature=self.args.temperature
                 )
-                
+
             else:
 
                 assert batch_size_per_device % sub_batch_size == 0
@@ -319,7 +309,6 @@ class PPOTrainer(RLTrainer):
                         ]
                         for key, value in rollouts_batch.items()
                     }
-                    
 
                     sub_batch_policy_outputs = self.policy(
                         **sub_batch, temperature=self.args.temperature
@@ -329,12 +318,11 @@ class PPOTrainer(RLTrainer):
                 policy_outputs = common_utils.merge_dict(
                     policy_outputs_list, merge_fn=torch.cat
                 )
-                
+
                 del sub_batch_policy_outputs
                 del policy_outputs_list
                 del sub_batch
-                
-            
+
             if sub_batch_size is None or sub_batch_size == batch_size_per_device:
                 ref_policy_outputs = self.ref_policy(
                     **rollouts_batch, temperature=self.args.temperature
@@ -370,8 +358,6 @@ class PPOTrainer(RLTrainer):
                 return_type=dict,
             )
 
-            
-
             ref_policy_outputs = common_utils.unpack_dict(
                 ref_policy_outputs, keys=("logprobs", "entropies"), return_type=dict
             )
@@ -379,20 +365,17 @@ class PPOTrainer(RLTrainer):
             rollouts_batch.update(
                 {f"{key}": value for key, value in policy_outputs.items()}
             )
-            
-            #rollouts_batch['response'] = ?
 
-            
+            # rollouts_batch['response'] = ?
 
-            
             rollouts_batch.update(
                 {f"ref_{key}": value for key, value in ref_policy_outputs.items()}
             )
-           
-            rollouts_batch['images']= images
-            rollouts_batch['reward_images'] = reward_images
-            rollouts_batch['queries'] =  queries
-            rollouts_batch['query_attn_masks'] = query_attn_masks
+
+            rollouts_batch["images"] = images
+            rollouts_batch["reward_images"] = reward_images
+            rollouts_batch["queries"] = queries
+            rollouts_batch["query_attn_masks"] = query_attn_masks
 
             device_of_a = query_attn_masks.device
 
@@ -401,38 +384,38 @@ class PPOTrainer(RLTrainer):
                 assert False, NotImplementedError
             else:
                 symbolic_reward_outputs_list = []
-                
+
                 assert batch_size_per_device % sub_batch_size == 0
 
                 symbolic_rm = make_symbolic_rm()
-                
 
                 for sub_batch_idx in range(batch_size_per_device):
-                    _answer = answers[sub_batch_idx:sub_batch_idx+1][0]
+                    _answer = answers[sub_batch_idx : sub_batch_idx + 1][0]
 
                     ###
-                    _order = [int(x.split('order ')[1]) for x in _answer]
-                    trimed_answer = [x.split('order ')[0] for x in _answer]
+                    _order = [int(x.split("order ")[1]) for x in _answer]
+                    trimed_answer = [x.split("order ")[0] for x in _answer]
 
                     sorted_answer = trimed_answer[:num_QA]
                     prediction = []
-                    prediction.append(text_responses[sub_batch_idx].split('USER: ')[0])
+                    prediction.append(text_responses[sub_batch_idx].split("USER: ")[0])
 
-                    for i in range(1,num_QA):
-                        prediction.append(text_responses[sub_batch_idx].split('USER: ')[i].split('ASSISTANT:')[-1])
-                    
-                    sub_batch_reward_outputs = symbolic_rm.calculate_reward(
-                            sentences = prediction, 
-                            return_dict=True, device = device_of_a,ref_answers= sorted_answer,  categories=_order
-                            
+                    for i in range(1, num_QA):
+                        prediction.append(
+                            text_responses[sub_batch_idx]
+                            .split("USER: ")[i]
+                            .split("ASSISTANT:")[-1]
                         )
-                    
-                    symbolic_reward_outputs_list.append(sub_batch_reward_outputs)
 
-                    
-                    
-    
-                
+                    sub_batch_reward_outputs = symbolic_rm.calculate_reward(
+                        sentences=prediction,
+                        return_dict=True,
+                        device=device_of_a,
+                        ref_answers=sorted_answer,
+                        categories=_order,
+                    )
+
+                    symbolic_reward_outputs_list.append(sub_batch_reward_outputs)
 
                 reward_outputs = common_utils.merge_dict(
                     symbolic_reward_outputs_list, merge_fn=torch.cat
@@ -444,8 +427,7 @@ class PPOTrainer(RLTrainer):
                 self.tokenizer.eos_token_id in response
                 for response in responses.tolist()
             ]
-            
-            
+
             reward_outputs = self.post_reward(
                 reward_outputs,
                 responses,
@@ -453,7 +435,7 @@ class PPOTrainer(RLTrainer):
                 relative_stop_token_penalty=self.args.relative_stop_token_penalty,
                 has_stop_token=has_stop_token,
             )
-            
+
             rollouts_batch.update(reward_outputs)
 
             # Shape reward with KL penalty.
@@ -462,10 +444,10 @@ class PPOTrainer(RLTrainer):
                 responses=rollouts_batch["responses"],
                 logprobs=rollouts_batch["logprobs"],
                 ref_logprobs=rollouts_batch["ref_logprobs"],
-                #length_bonus=rollouts_batch["length_bonus"],
-                #correct_bonus=rollouts_batch["correct_bonus"],
+                # length_bonus=rollouts_batch["length_bonus"],
+                # correct_bonus=rollouts_batch["correct_bonus"],
             )
-            
+
             rollouts_batch.update(shape_reward_outputs)
 
             rollouts_batch_cpu = {
@@ -482,7 +464,7 @@ class PPOTrainer(RLTrainer):
             values=rollouts["values"].to(self.accelerator.device),
         )
         advantages = {key: value.cpu() for key, value in advantages.items()}
-        
+
         return {**rollouts, **advantages}
 
     def post_reward(
@@ -493,13 +475,12 @@ class PPOTrainer(RLTrainer):
         relative_stop_token_penalty: bool,
         has_stop_token: List[bool],
     ) -> Dict[str, torch.Tensor]:
-        
         """Assign bad reward values to sequences which didn't stop properly."""
         if penalize_no_stop_token:
             has_stop_token = torch.tensor(has_stop_token, device=responses.device)
             rewards = reward_outputs["rewards"]
             if relative_stop_token_penalty:
-                #has_stop_token = torch.tensor(has_stop_token).unsqueeze(1)
+                # has_stop_token = torch.tensor(has_stop_token).unsqueeze(1)
                 has_stop_token = has_stop_token.clone().detach().unsqueeze(1)
 
                 rewards = (
@@ -573,12 +554,9 @@ class PPOTrainer(RLTrainer):
             ),
             device=self.accelerator.device,
         )
-        
 
         # Enable training mode for graident checkpointing.
         self.policy.train()
-        
-        
 
         outputs = self.policy(
             queries,
@@ -592,11 +570,8 @@ class PPOTrainer(RLTrainer):
 
         logprob = outputs["logprobs"]
 
-        
-
-
         ratio = torch.exp(logprob - old_logprob)
-        
+
         # When current policy is close to the old policy, the KL component of this advantage is approximately correct.
         pg_losses = -advantages * ratio
         pg_losses2 = -advantages * torch.clamp(
@@ -658,8 +633,6 @@ class PPOTrainer(RLTrainer):
 
         # Enable training mode for graident checkpointing.
         self.policy.train()
-        
-        
 
         outputs = self.policy(
             queries,
@@ -673,9 +646,6 @@ class PPOTrainer(RLTrainer):
         )
 
         vpred = outputs["values"]
-
-        
-
 
         vpredclipped = torch.clamp(
             vpred,
@@ -715,8 +685,8 @@ class PPOTrainer(RLTrainer):
             f"objective/kl_coef": kwargs["kl_coef"],
             f"objective/kl_sum_seq": kl_sum_seq,
             f"objective/kl_avg_seq": kl_avg_seq,
-            #f"objective/length_bonus": rollouts["length_bonus"].mean(),
-            #f"objective/correct_bonus": rollouts["correct_bonus"].mean(),
+            # f"objective/length_bonus": rollouts["length_bonus"].mean(),
+            # f"objective/correct_bonus": rollouts["correct_bonus"].mean(),
             f"objective/shaped_rewards": shaped_rewards,
             f"objective/non_score_rewards": non_score_rewards,
             f"objective/rewards": rewards,  # Original model reward.
@@ -901,10 +871,13 @@ def smart_tokenizer_and_embedding_resize(
 
         model.get_input_embeddings().requires_grad_(True)
         model.get_output_embeddings().requires_grad_(True)
-def make_symbolic_rm():  
-    
+
+
+def make_symbolic_rm():
+
     model = load_rf_rm()
     return model
+
 
 def make_models(
     tokenizer: transformers.PreTrainedTokenizer,
@@ -931,8 +904,6 @@ def make_models(
         )
         smart_tokenizer_and_embedding_resize(num_new_tokens, tokenizer, model)
         return model
-    
-    
 
     def make_reward_model(
         adapter_name, is_trainable, reuse_base_model=True, resume_path=None
@@ -1032,7 +1003,7 @@ def make_models(
         adapter_name="lora_ref_policy",
     )
 
-    symbolic_rm = make_symbolic_rm() # this is not useful
+    symbolic_rm = make_symbolic_rm()  # this is not useful
 
     reward_model = make_reward_model(
         adapter_name="lora_reward",
