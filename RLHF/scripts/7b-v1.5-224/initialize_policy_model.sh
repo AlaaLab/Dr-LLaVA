@@ -1,24 +1,20 @@
 #!/bin/bash
-
 set -e
 set -x
 
-#!/bin/bash
+export PATH=$PATH:[PATH_TO_CONDA_ENV]/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:[PATH_TO_ANACONDA]/lib/
+source [PATH_TO_ANACONDA]/etc/profile.d/conda.sh
 
-export PATH=$PATH:~/.conda/envs/llava/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/wynton/protected/home/ichs/harrysun/anaconda3/lib/
-source /wynton/protected/home/ichs/harrysun/anaconda3/etc/profile.d/conda.sh
-set -e
-set -x
 module load cuda/11.5
-conda activate llava
+conda activate [YOUR_ENVIRONMENT_NAME]
+
 export CUDA_VISIBLE_DEVICES=0,1
 export DATA_DIR="/path/to/your/data/directory"
-export MODEL_DIR="/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/"
+export MODEL_DIR="/path/to/model/directory"
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export GPUS_PER_NODE=4
 export OMP_NUM_THREADS=8
-############################
 
 # MODEL CONFIG
 VISION_TOWER=openai/clip-vit-large-patch14
@@ -43,7 +39,7 @@ deepspeed \
     --per_device_eval_batch_size 8 \
     --gradient_accumulation_steps $GRAD_ACCUMULATION \
     --model_name_or_path $MODEL_DIR/$LM_MODEL_NAME \
-    --image_folder "/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/ucsf_data_rl/image_folder" \
+    --image_folder "/path/to/image/folder" \
     --vision_tower $VISION_TOWER \
     --learning_rate $LEARNING_RATE \
     --mm_vision_select_layer -2 \
@@ -52,7 +48,7 @@ deepspeed \
     --freeze_mm_mlp_adapter True \
     --query_len 1280 \
     --response_len 768 \
-    --dataset "/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/ucsf_data_rl/LLaVA_heme_train_DrLLaVA.json" \
+    --dataset "/path/to/dataset.json" \
     --dataset_format "v1" \
     --eval_size 500 \
     --bits 16 \

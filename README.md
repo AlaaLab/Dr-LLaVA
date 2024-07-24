@@ -16,7 +16,7 @@ Dr-LLaVA was trained on 4 A100 GPUs with 80GB memory. For training on fewer GPUs
 
 Dr-LLaVA has four steps.
 
-1. **Curate the Dataset and Initialize the Policy Model**
+1. **Curate the Dataset and Initialize the Policy Model with Supervised Fine-tuning**
 2. **Construct Symbolic Representations of Clinical Reasoning**
     - Utilize these representations to generate GPT-4-guided visual instruction tuning data, simulating clinician-VLM conversations with demonstrations of clinical reasoning.
 3. **Create an Automatic Reward Function**
@@ -63,7 +63,7 @@ Refer to LLaVA's instruction tuning data [here](https://huggingface.co/datasets/
 
 ### Supervised Fine-tuning of the LLaVA Model
 
-Note: The RL part of the model will not function unless supervised fine-tuning is performed.
+Note: The RL component of the model will not function unless supervised fine-tuning is performed. This method is designed to address the issue of medical knowledge hallucination, which frequently occurs during supervised fine-tuning when the model attempts to produce diagnoses but remains inconsistent across conversations. The RL component will not operate in a zero-shot manner, where an unfine-tuned model does not attempt to perform medical diagnosis.
 
 After curating the dataset and and storing the training and test data in the LLaVA.json format, please download the the 7b SFT model checkpoint from [`LLaVA-RLHF-7b-v1.5-224`](https://huggingface.co/zhiqings/LLaVA-RLHF-7b-v1.5-224) for supervised fine tuning, you can run the following script to initialize the policy model:
 run:
@@ -98,6 +98,7 @@ To build your reward model, refer to the class `RewardModel_HEME` in the file `R
 Run:
 
 ```bash
+cd RLHF/
 bash scripts/7b-v1.5-224/train_rl_model.sh
 ```
 
