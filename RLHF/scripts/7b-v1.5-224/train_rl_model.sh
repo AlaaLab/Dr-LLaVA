@@ -1,15 +1,18 @@
 #!/bin/bash
 
-export PATH=$PATH:~/.conda/envs/llava/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/wynton/protected/home/ichs/harrysun/anaconda3/lib/
-source /wynton/protected/home/ichs/harrysun/anaconda3/etc/profile.d/conda.sh
+export PATH=$PATH:[PATH_TO_CONDA_ENV]/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:[PATH_TO_ANACONDA]/lib/
+source [PATH_TO_ANACONDA]/etc/profile.d/conda.sh
+
 set -e
 set -x
+
 module load cuda/11.5
-conda activate llava
-export CUDA_VISIBLE_DEVICES=0,1,2,3,
+conda activate [YOUR_ENVIRONMENT_NAME]
+
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR="/path/to/your/data/directory"
-export MODEL_DIR="/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/"
+export MODEL_DIR="/path/to/model/directory"
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export GPUS_PER_NODE=4
 export OMP_NUM_THREADS=8
@@ -20,7 +23,7 @@ POLICY_BASE_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 RM_BASE_MODEL_NAME=LLaVA-RLHF-13b-v1.5-336/sft_model
 
 POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding/lora_default
-RM_LORA=LLaVA-Fact-RM-13b-v1.5-336-lora-padding/checkpoint-200  # we use early stopping
+RM_LORA=LLaVA-Fact-RM-13b-v1.5-336-lora-padding/checkpoint-200
 
 # SAVE CONFIG
 MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding
@@ -29,12 +32,13 @@ MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding
 LEARNING_RATE=3e-5
 KL_COEF=0.1
 EPOCH=4
-ROLLOUT_BATCH_SIZE=512 
+ROLLOUT_BATCH_SIZE=512
 STEP_BATCH_SZIE=256
 ROLLOUT_PER_DEVICE_BATCH_SIZE=32
 REWARD_MODEL_PER_DEVICE_BATCH_SIZE=8
 STEP_PER_DEVICE_BATCH_SIZE=8
 NOPTEPOCHS=2
+
 # FACT-RLHF CONFIG
 INCOMPLETE_RESPONSE=-2.0
 LENGTH_BONUS=-10.0
@@ -59,7 +63,7 @@ torchrun \
     --learning_rate $LEARNING_RATE \
     --init_value_with_reward True \
     --warmup_steps 5 \
-    --dataset_path "/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints/ucsf_data_rl/LLaVA_heme_train_rl.json" \
+    --dataset_path "/path/to/dataset.json" \
     --train_splits "train" \
     --output_dir "$MODEL_DIR/$MODEL_NAME" \
     --total_epochs $EPOCH \
@@ -91,7 +95,7 @@ torchrun \
     --query_len 256 \
     --response_len 224 \
     --noptepochs $NOPTEPOCHS \
-    --image_folder "/wynton/protected/project/outcome_pred/LLaVA_checkpoints/ucsf_data_rl/image_folder" \
+    --image_folder "/path/to/image/folder" \
     --vision_tower different \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
