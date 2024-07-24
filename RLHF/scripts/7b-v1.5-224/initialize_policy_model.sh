@@ -6,7 +6,6 @@ export PATH=$PATH:[PATH_TO_CONDA_ENV]/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:[PATH_TO_ANACONDA]/lib/
 source [PATH_TO_ANACONDA]/etc/profile.d/conda.sh
 
-module load cuda/11.5
 conda activate [YOUR_ENVIRONMENT_NAME]
 
 export CUDA_VISIBLE_DEVICES=0,1

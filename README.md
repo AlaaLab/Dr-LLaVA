@@ -70,6 +70,7 @@ run:
 
 
 ```bash
+cd RLHF/
 bash scripts/7b-v1.5-224/initialize_policy_model.sh
 ```
 
