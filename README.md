@@ -8,13 +8,15 @@
     <h1>Dr-LLaVA: Visual Instruction Tuning with Symbolic Clinical Grounding</h1>
 </div>
 
-Dr-LLaVA is a conversational Visual Language Model (VLM) fine-tuned for analyzing medical images. Developed to reduce inconsistency across medical diagnostic conversations, it employs a novel alignment algorithm utilizing **symbolic representations** of clinical reasoning to ground VLMs in medical knowledge.
+**Dr-LLaVA** is a conversational Visual Language Model (VLM) fine-tuned for analyzing medical images. 
+Developed to reduce inconsistency across medical diagnostic conversations, it employs a novel alignment algorithm utilizing **symbolic representations** of clinical reasoning to ground VLMs in medical knowledge. Using a rule-based system, instead of a trained reward model or large language model, this method is more memory efficient and straightforward to understand.
+However, because we employed a rule-based reward model system that utilizes conditions based on the existence or absence of key words to optimize the model, each model designed to address a specific medical knowledge hallucination problem requires a distinct rule-based reward model.
 
-Dr-LLaVA was trained on 4 A100 GPUs with 80GB memory. For training on fewer GPUs, reduce the `per_device_train_batch_size` and increase the `gradient_accumulation_steps` accordingly, maintaining the same global batch size: `per_device_train_batch_size` x `gradient_accumulation_steps` x `num_gpus`.
+Dr-LLaVA was trained on 4 A100 GPUs with 80GB memory. For training on fewer GPUs, reduce the per_device_train_batch_size and increase the gradient_accumulation_steps accordingly, maintaining the same global batch size: `per_device_train_batch_size` x `gradient_accumulation_steps` x `num_gpus`.
 
-### Training Steps
+Dr-LLaVA has four steps.
 
-1. **Curate the Dataset and Initialize the RL Model**
+1. **Curate the Dataset and Initialize the Policy Model**
 2. **Construct Symbolic Representations of Clinical Reasoning**
     - Utilize these representations to generate GPT-4-guided visual instruction tuning data, simulating clinician-VLM conversations with demonstrations of clinical reasoning.
 3. **Create an Automatic Reward Function**
