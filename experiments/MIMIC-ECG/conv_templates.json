@@ -54,7 +54,7 @@
         "<image>\n{INSERT PATIENT NOTE}\n Please evaluate the ECG provided. Determine if there are indications of ST elevation.",
         "<image>\n{INSERT PATIENT NOTE}\n Examine the patient's ECG. Assess for any signs of ST elevation."
     ],
-    'st_elev_a_true':
+    "st_elev_a_true":
     [
         "Yes, the ECG shows ST elevation.",
         "Indeed, the ECG indicates ST elevation.",
@@ -82,7 +82,7 @@
         "Yes, the ECG suggests ST elevation.",
         "ST elevation is present, as indicated by the ECG."
     ],
-    'st_elev_a_false':
+    "st_elev_a_false":
     [
         "No, the ECG does not show ST elevation.",
         "No, there is no ST elevation indicated on the ECG.",
@@ -110,7 +110,7 @@
         "ST elevation is absent, according to the ECG.",
         "No, the ECG indicates absence of ST elevation."
     ],
-    'st_depres_twi_q':
+    "st_depres_twi_q":
     [
         "Your prior assessment was: {INSERT PRIOR ANSWER} Please review this patient's ECG and determine if it shows signs of ST depression or T wave inversion.",
         "Your prior assessment was: {INSERT PRIOR ANSWER} Kindly examine the patient's ECG to see whether there are indications of ST depression or T wave inversion.",
@@ -165,7 +165,7 @@
         "Your prior assessment was: {INSERT PRIOR ANSWER} Please evaluate the ECG of the patient to ascertain whether it shows ST depression or T-wave inversion.",
         "Your prior assessment was: {INSERT PRIOR ANSWER} Examine the ECG provided and check for indications of ST depression or T wave inversion."
     ],
-    'st_depres_twi_a_true':
+    "st_depres_twi_a_true":
     [
         "Yes, the ECG shows ST depression.",
         "Indeed, the ECG indicates ST depression.",
@@ -191,7 +191,7 @@
         "Yes, the ECG records ST depression.",
         "The ECG displays evidence of ST depression.",
         "Yes, the ECG suggests ST depression.",
-        "ST depression is present, as indicated by the ECG."
+        "ST depression is present, as indicated by the ECG.",
         "Yes, the ECG shows T-wave inversion.",
         "Indeed, the ECG indicates T-wave inversion.",
         "Yes, there is T-wave inversion on the ECG.",
@@ -218,35 +218,35 @@
         "Yes, the ECG suggests T-wave inversion.",
         "T-wave inversion is present, as indicated by the ECG."
     ],
-    'st_depres_twi_a_false':
+    "st_depres_twi_a_false":
     [
-        "No, the ECG does not show ST elevation or T-wave inversion.",
-        "No, there are no indications of ST elevation or T-wave inversion on the ECG.",
-        "The ECG does not demonstrate ST elevation or T-wave inversion.",
-        "No, ST elevation and T-wave inversion are not present on the ECG.",
-        "No, the ECG does not reveal ST elevation or T-wave inversion.",
-        "The ECG shows no signs of ST elevation or T-wave inversion.",
-        "No, the ECG does not display ST elevation or T-wave inversion.",
-        "ST elevation and T-wave inversion are not evident on the ECG.",
-        "No, the ECG does not reflect ST elevation or T-wave inversion.",
-        "No, ST elevation or T-wave inversion are not indicated on the ECG.",
-        "The ECG does not confirm ST elevation or T-wave inversion.",
-        "No, there is no evidence of ST elevation or T-wave inversion on the ECG.",
-        "The ECG findings do not indicate ST elevation or T-wave inversion.",
-        "No, there are no signs of ST elevation or T-wave inversion on the ECG.",
-        "The ECG does not present ST elevation or T-wave inversion.",
-        "No, ST elevation and T-wave inversion are not detected on the ECG.",
-        "The ECG does not exhibit ST elevation or T-wave inversion.",
-        "ST elevation and T-wave inversion are absent, as indicated by the ECG.",
-        "The ECG readings show no ST elevation or T-wave inversion.",
-        "No, ST elevation or T-wave inversion are not observed on the ECG.",
-        "The ECG records do not show ST elevation or T-wave inversion.",
-        "The ECG displays no evidence of ST elevation or T-wave inversion.",
-        "No, the ECG does not suggest ST elevation or T-wave inversion.",
-        "ST elevation and T-wave inversion are not present, according to the ECG.",
-        "No, the ECG indicates absence of ST elevation and T-wave inversion."
+        "No, the ECG does not show ST depression or T-wave inversion.",
+        "No, there are no indications of ST depression or T-wave inversion on the ECG.",
+        "The ECG does not demonstrate ST depression or T-wave inversion.",
+        "No, ST depression and T-wave inversion are not present on the ECG.",
+        "No, the ECG does not reveal ST depression or T-wave inversion.",
+        "The ECG shows no signs of ST depression or T-wave inversion.",
+        "No, the ECG does not display ST depression or T-wave inversion.",
+        "ST depression and T-wave inversion are not evident on the ECG.",
+        "No, the ECG does not reflect ST depression or T-wave inversion.",
+        "No, ST depression or T-wave inversion are not indicated on the ECG.",
+        "The ECG does not confirm ST depression or T-wave inversion.",
+        "No, there is no evidence of ST depression or T-wave inversion on the ECG.",
+        "The ECG findings do not indicate ST depression or T-wave inversion.",
+        "No, there are no signs of ST depression or T-wave inversion on the ECG.",
+        "The ECG does not present ST depression or T-wave inversion.",
+        "No, ST depression and T-wave inversion are not detected on the ECG.",
+        "The ECG does not exhibit ST depression or T-wave inversion.",
+        "ST depression and T-wave inversion are absent, as indicated by the ECG.",
+        "The ECG readings show no ST depression or T-wave inversion.",
+        "No, ST depression or T-wave inversion are not observed on the ECG.",
+        "The ECG records do not show ST depression or T-wave inversion.",
+        "The ECG displays no evidence of ST depression or T-wave inversion.",
+        "No, the ECG does not suggest ST depression or T-wave inversion.",
+        "ST depression and T-wave inversion are not present, according to the ECG.",
+        "No, the ECG indicates absence of ST depression and T-wave inversion."
     ],
-    'troponin_q':
+    "troponin_q":
     [
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Should we perform a troponin test?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Do you recommend conducting a troponin test?",
@@ -300,7 +300,7 @@
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Is it necessary to perform a troponin test at this time?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Would it be appropriate to conduct a troponin test?"
     ],
-    'troponin_a_true': 
+    "troponin_a_true": 
     [
         "Yes, we should order a troponin test.",
         "Yes, a troponin test is necessary.",
@@ -328,7 +328,7 @@
         "Yes, we need to perform a troponin test.",
         "Yes, a troponin test should be arranged."
     ],
-    'troponin_a_false':
+    "troponin_a_false":
     [
         "No, we should not order a troponin test.",
         "No, a troponin test is not necessary.",
@@ -356,7 +356,7 @@
         "No, we do not need to perform a troponin test.",
         "No, a troponin test should not be arranged."
     ], 
-    'diag_q':
+    "diag_q":
     [
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Is this patient experiencing a heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Does the patient have a heart attack?",
@@ -409,7 +409,7 @@
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Does the patient present signs of a heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Is the patient experiencing a myocardial infarction now?"
     ],
-    'diag_q_trop':
+    "diag_q_trop":
     [
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is this patient experiencing a heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Does the patient have a heart attack?",
@@ -440,7 +440,7 @@
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient showing indications of a heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient experiencing an acute heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Does the patient have a myocardial infarction?",
-        "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient suffering a heart attack?"
+        "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient suffering a heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient exhibiting symptoms of a heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is this patient currently having a myocardial infarction?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient experiencing a cardiac infarction?",
@@ -466,8 +466,8 @@
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Could the patient be in the process of a heart attack?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient currently having heart attack symptoms?",
         "Your prior assessment was: {INSERT PRIOR ANSWER}. Troponin test result: {INSERT_RESULT}. Is the patient experiencing an acute cardiac event?"
-    ]
-    'diag_a_stemi':
+    ],
+    "diag_a_stemi":
     [
         "The patient is having a heart attack. Due to the ST elevation observed, I diagnose a ST elevation myocardial infarction (STEMI).",
         "The patient is currently experiencing a heart attack. Since ST elevation is present, I diagnose a STEMI.",
@@ -494,8 +494,8 @@
         "The patient is experiencing a heart attack. Observing ST elevation, I conclude it is a STEMI.",
         "The patient is suffering from a heart attack. Since ST elevation was observed, I diagnose a STEMI.",
         "The patient is having a heart attack. Given the presence of ST elevation, I diagnose a ST elevation myocardial infarction (STEMI)."
-    ]
-    'diag_a_nstemi':
+    ],
+    "diag_a_nstemi":
     [
         "The patient is having a heart attack. Since ST elevation is absent, I diagnose an NSTEMI.",
         "The patient is currently experiencing a heart attack. Because they lack ST elevation, my diagnosis is NSTEMI.",
@@ -522,8 +522,8 @@
         "The patient is suffering from a heart attack. Since they do not exhibit ST elevation, my diagnosis is NSTEMI.",
         "The patient is experiencing a heart attack. Due to the absence of ST elevation, I diagnose a Non-ST Elevation Myocardial Infarction (NSTEMI).",
         "The patient is having a heart attack. As ST elevation is not detected, I conclude it is NSTEMI."
-    ]
-    'diag_a_normal':
+    ],
+    "diag_a_normal":
     [
         "The patient is not having a heart attack.",
         "The patient is not currently experiencing a heart attack.",
@@ -551,5 +551,4 @@
         "The patient is not showing any signs of a heart attack.",
         "The patient is not undergoing a myocardial infarction."
     ]
-
 }
