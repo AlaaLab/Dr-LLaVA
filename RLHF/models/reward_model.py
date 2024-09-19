@@ -55,7 +55,8 @@ import numpy as np
 
 def load_reword_model():
 
-    rf_model = RewardModel_HEME()
+    #rf_model = RewardModel_HEME()
+    rf_model = RewardModel_ACS()
 
     return rf_model
 
