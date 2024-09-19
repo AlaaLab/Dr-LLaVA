@@ -220,7 +220,7 @@ class AutoregressivePolicy(Policy):
 
         question_answers = torch.ones(answers_tokens.size()) * 147
         random.seed()
-        for i in range(2, 6):
+        for i in range(2, 5):#CHANG TO 5 as we have 4 questions
             # hack the system here because 
             # 1. the first question is always the same
             # 2. there are 5 questions in total.
@@ -297,7 +297,7 @@ class AutoregressivePolicy(Policy):
         return dict(
             responses=responses,
             AnswerQuestionMASK=question_answers,
-            num_QA=5,
+            num_QA=4, #Before 5
         )  # Size (bsz * num_return_sequences, response_len).
 
 
