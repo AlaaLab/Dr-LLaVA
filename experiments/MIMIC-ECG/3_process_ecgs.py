@@ -1,7 +1,9 @@
 import os
 import wfdb
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Set the backend before importing pyplot
+import matplotlib.pyplot as plt  # Now import pyplot as plt
 from scipy.signal import find_peaks
 from multiprocessing import Pool, cpu_count
 from functools import partial
@@ -9,8 +11,9 @@ from tqdm import tqdm  # Import tqdm for progress bar
 import logging  # Import logging for detailed logs
 import argparse
 import sys
+import json
 
-def find_all_rec_paths(input_dir):
+def find_all_rec_paths(input_dir,study_id_set=None):
     """
     Recursively find all ECG record paths by locating .hea files.
 
@@ -21,12 +24,243 @@ def find_all_rec_paths(input_dir):
         list: List of record paths without file extensions.
     """
     rec_paths = []
-    for root, dirs, files in os.walk(input_dir):
-        for file in files:
-            if file.endswith('.hea'):
-                rec_path = os.path.join(root, file[:-4])  # Remove '.hea' extension
-                rec_paths.append(rec_path)
+    if study_id_set==None:
+        for root, dirs, files in os.walk(input_dir):
+            for file in files:
+                if file.endswith('.hea'):
+                    rec_path = os.path.join(root, file[:-4])  # Remove '.hea' extension
+                    rec_paths.append(rec_path)
+    else:
+        for root, dirs, files in os.walk(input_dir):
+            for file in files:
+                if file.endswith('.hea'):
+                    if int(file[:-4]) in study_id_set:
+                        rec_path = os.path.join(root, file[:-4])  # Remove '.hea' extension
+                        rec_paths.append(rec_path)
     return rec_paths
+
+        
+def main():
+    """
+    Main function to process all ECG records using multiprocessing with a progress bar.
+    """
+
+    # Configure logging
+    logging.basicConfig(
+        filename='ecg_processing.log',
+        filemode='a',
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
+
+    # Parse command-line arguments for flexibility
+    parser = argparse.ArgumentParser(description="Process ECG files and save median beats plots as .jpeg images.")
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        default='data/mimic-iv-ecg-diagnostic-electrocardiogram-matched-subset-1.0/files',
+        help="Path to the directory containing ECG files."
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default='data/image_folder/',
+        help="Path to the directory where output images will be saved."
+    )
+    parser.add_argument(
+        "--cpu_percent",
+        type=float,
+        default=90.0,
+        help="Percentage of CPU cores to use for processing (e.g., 50 for 50%)."
+    )
+    parser.add_argument(
+        "--image_format",
+        type=str,
+        default='jpeg',
+        choices=['jpeg', 'png', 'pdf'],
+        help="Desired image format for the output plots."
+    )
+    args = parser.parse_args()
+
+    input_dir = args.input_dir
+    output_dir = args.output_dir
+    cpu_percent = args.cpu_percent
+    image_format = args.image_format
+
+    # Ensure the output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Find all record paths
+    with open('data/modelling_ids.json') as f: 
+        study_id_set= json.load(f)
+
+    logging.info("Scanning for ECG records...")
+    rec_paths = find_all_rec_paths(input_dir, study_id_set)
+
+     # This step helps in skipping ECGs that have already been processed
+    filtered_rec_paths = []
+    skipped_existing = 0
+
+    for rec_path in tqdm(rec_paths, desc='Filtering ECG records'):
+        record_name = os.path.basename(rec_path) 
+        output_image_path = os.path.join(output_dir, f"{record_name}.{image_format}")
+        if os.path.exists(output_image_path):
+            skipped_existing += 1
+            logging.info(f"Skipping {record_name}: Output image already exists.")
+            continue  # Skip ECGs that have already been processed
+
+        filtered_rec_paths.append(rec_path)
+
+    logging.info(f"Found {len(filtered_rec_paths)} ECG records to process.")
+
+    if not filtered_rec_paths:
+        logging.warning("No ECG records found. Exiting.")
+        print("No ECG records found. Exiting.")
+        sys.exit(0)
+
+    # Determine the number of CPU cores and set the number of processes based on cpu_percent
+    total_cpus = cpu_count()
+    num_processes = max(1, int((cpu_percent / 100.0) * total_cpus))
+    logging.info(f"Using {num_processes} out of {total_cpus} CPU cores for processing ({cpu_percent}%).")
+    print(f"Using {num_processes} out of {total_cpus} CPU cores for processing ({cpu_percent}%).")
+
+    # Partial function to fix the output_dir and image_format arguments
+    process_func = partial(process_record_wrapper, output_dir=output_dir, image_format=image_format)
+
+    # Use multiprocessing Pool to process records in parallel with a progress bar
+    with Pool(processes=num_processes) as pool:
+        # Use imap_unordered for better performance and to allow tqdm to update as tasks complete
+        for _ in tqdm(pool.imap_unordered(process_func, filtered_rec_paths), total=len(filtered_rec_paths), desc="Processing ECG files"):
+            pass
+
+    logging.info("Processing completed.")
+    print("Processing completed.")
+    
+def process_record_wrapper(rec_path, output_dir, image_format):
+    """
+    Wrapper function to pass additional arguments to process_record.
+
+    Args:
+        rec_path (str): Path to the ECG record (without file extension).
+        output_dir (str): Directory where the output images will be saved.
+        image_format (str): Desired image format.
+
+    Returns:
+        bool: True if processing is successful, False otherwise.
+    """
+    try:
+        # Modify the process_record function to accept image_format
+        # and save images accordingly
+        # Step 1 to Step 5 are already handled in process_record
+        # We'll adjust only the saving part here
+        rd_record = wfdb.rdrecord(rec_path)
+        
+        # Get channel information
+        channel_names = rd_record.sig_name
+        num_leads = len(channel_names)
+        
+        if num_leads != 12:
+            logging.warning(f"Expected 12 leads, but found {num_leads} in {rec_path}. Proceeding with available leads.")
+        
+        signals = rd_record.p_signal
+        fs = rd_record.fs
+        n_samples = signals.shape[0]
+        
+        try:
+            annotations = wfdb.rdann(rec_path, 'atr')
+            r_peaks = annotations.sample
+        except FileNotFoundError:
+            try:
+                lead_idx = channel_names.index('II')
+            except ValueError:
+                lead_idx = 0
+                logging.warning(f"Lead II not found in {rec_path}. Using first lead for R-peak detection.")
+            
+            r_peak_signal = signals[:, lead_idx]
+            distance = int(0.6 * fs)
+            height = np.mean(r_peak_signal) + 0.5 * np.std(r_peak_signal)
+            peaks, _ = find_peaks(r_peak_signal, distance=distance, height=height)
+            r_peaks = peaks
+        
+        pre_window = int(0.4 * fs)
+        post_window = int(0.6 * fs)
+        beat_length = pre_window + post_window
+        
+        beats_per_lead = {lead: [] for lead in channel_names}
+        
+        for peak in r_peaks:
+            start = peak - pre_window
+            end = peak + post_window
+            if start >= 0 and end <= n_samples:
+                beat_segment = signals[start:end, :]
+                for idx, lead in enumerate(channel_names):
+                    beats_per_lead[lead].append(beat_segment[:, idx])
+        
+        for lead in channel_names:
+            beats_per_lead[lead] = np.array(beats_per_lead[lead])
+        
+        median_beats = {}
+        for lead in channel_names:
+            if beats_per_lead[lead].size == 0:
+                continue
+            median_beats[lead] = np.median(beats_per_lead[lead], axis=0)
+        
+        if not median_beats:
+            logging.warning(f"No median beats computed for {rec_path}. Skipping plot.")
+            return False
+        
+        time_axis = np.linspace(-pre_window / fs, post_window / fs, beat_length)
+        
+        n_rows = 3
+        n_cols = 4
+        
+        figsize_inches = (5.12, 5.12)
+        dpi = 100
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize_inches, dpi=dpi)
+        
+        for idx, lead in enumerate(channel_names):
+            row = idx // n_cols
+            col = idx % n_cols
+            ax = axes[row, col]
+            
+            if lead not in median_beats:
+                ax.set_title(f'Lead {lead} (No Data)', fontsize=8)
+                ax.axis('off')
+                continue
+            
+            median_beat = median_beats[lead]
+            ax.plot(time_axis, median_beat, color='blue', linewidth=1)
+            ax.set_title(f'Lead {lead}', fontsize=10)
+            ax.grid(True, linewidth=0.5)
+            ax.tick_params(axis='both', which='major', labelsize=6)
+        
+        total_plots = n_rows * n_cols
+        num_leads = len(channel_names)
+        if num_leads < total_plots:
+            for idx in range(num_leads, total_plots):
+                row = idx // n_cols
+                col = idx % n_cols
+                axes[row, col].axis('off')
+        
+        plt.tight_layout(rect=[0, 0, 1, 1])
+        
+        record_name = os.path.basename(rec_path)
+        output_image_path = os.path.join(output_dir, f"{record_name}.{image_format}")
+        plt.savefig(output_image_path, format=image_format)
+        plt.close(fig)
+        return True
+    
+    except Exception as e:
+        logging.error(f"Error processing {rec_path}: {e}")
+        print(f"Error processing {rec_path}: {e}")
+        return False
+
+if __name__ == "__main__":
+    main()
+
+
+
 
 # def process_record(rec_path, output_dir):
 #     """
@@ -177,211 +411,6 @@ def find_all_rec_paths(input_dir):
 #         plt.close(fig)  # Close the figure to free memory
 #         # logging.info(f"Saved median beats plot as '{output_image_path}'.")
 #         return True  # Indicate successful processing
-        
-def main():
-    """
-    Main function to process all ECG records using multiprocessing with a progress bar.
-    """
-
-    # Configure logging
-    logging.basicConfig(
-        filename='ecg_processing.log',
-        filemode='a',
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        level=logging.INFO
-    )
-
-    # Parse command-line arguments for flexibility
-    parser = argparse.ArgumentParser(description="Process ECG files and save median beats plots as .jpeg images.")
-    parser.add_argument(
-        "--input_dir",
-        type=str,
-        default='data/mimic-iv-ecg-diagnostic-electrocardiogram-matched-subset-1.0/files',
-        help="Path to the directory containing ECG files."
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default='data/image_folder/',
-        help="Path to the directory where output images will be saved."
-    )
-    parser.add_argument(
-        "--cpu_percent",
-        type=float,
-        default=50.0,
-        help="Percentage of CPU cores to use for processing (e.g., 50 for 50%)."
-    )
-    parser.add_argument(
-        "--image_format",
-        type=str,
-        default='jpeg',
-        choices=['jpeg', 'png', 'pdf'],
-        help="Desired image format for the output plots."
-    )
-    args = parser.parse_args()
-
-    input_dir = args.input_dir
-    output_dir = args.output_dir
-    cpu_percent = args.cpu_percent
-    image_format = args.image_format
-
-    # Ensure the output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Find all record paths
-    logging.info("Scanning for ECG records...")
-    rec_paths = find_all_rec_paths(input_dir)
-    logging.info(f"Found {len(rec_paths)} ECG records to process.")
-    print(f"Found {len(rec_paths)} ECG records to process.")
-
-    if not rec_paths:
-        logging.warning("No ECG records found. Exiting.")
-        print("No ECG records found. Exiting.")
-        sys.exit(0)
-
-    # Determine the number of CPU cores and set the number of processes based on cpu_percent
-    total_cpus = cpu_count()
-    num_processes = max(1, int((cpu_percent / 100.0) * total_cpus))
-    logging.info(f"Using {num_processes} out of {total_cpus} CPU cores for processing ({cpu_percent}%).")
-    print(f"Using {num_processes} out of {total_cpus} CPU cores for processing ({cpu_percent}%).")
-
-    # Partial function to fix the output_dir and image_format arguments
-    process_func = partial(process_record_wrapper, output_dir=output_dir, image_format=image_format)
-
-    # Use multiprocessing Pool to process records in parallel with a progress bar
-    with Pool(processes=num_processes) as pool:
-        # Use imap_unordered for better performance and to allow tqdm to update as tasks complete
-        for _ in tqdm(pool.imap_unordered(process_func, rec_paths), total=len(rec_paths), desc="Processing ECG files"):
-            pass
-
-    logging.info("Processing completed.")
-    print("Processing completed.")
-    
-def process_record_wrapper(rec_path, output_dir, image_format):
-    """
-    Wrapper function to pass additional arguments to process_record.
-
-    Args:
-        rec_path (str): Path to the ECG record (without file extension).
-        output_dir (str): Directory where the output images will be saved.
-        image_format (str): Desired image format.
-
-    Returns:
-        bool: True if processing is successful, False otherwise.
-    """
-    try:
-        # Modify the process_record function to accept image_format
-        # and save images accordingly
-        # Step 1 to Step 5 are already handled in process_record
-        # We'll adjust only the saving part here
-        rd_record = wfdb.rdrecord(rec_path)
-        
-        # Get channel information
-        channel_names = rd_record.sig_name
-        num_leads = len(channel_names)
-        
-        if num_leads != 12:
-            logging.warning(f"Expected 12 leads, but found {num_leads} in {rec_path}. Proceeding with available leads.")
-        
-        signals = rd_record.p_signal
-        fs = rd_record.fs
-        n_samples = signals.shape[0]
-        
-        try:
-            annotations = wfdb.rdann(rec_path, 'atr')
-            r_peaks = annotations.sample
-        except FileNotFoundError:
-            try:
-                lead_idx = channel_names.index('II')
-            except ValueError:
-                lead_idx = 0
-                logging.warning(f"Lead II not found in {rec_path}. Using first lead for R-peak detection.")
-            
-            r_peak_signal = signals[:, lead_idx]
-            distance = int(0.6 * fs)
-            height = np.mean(r_peak_signal) + 0.5 * np.std(r_peak_signal)
-            peaks, _ = find_peaks(r_peak_signal, distance=distance, height=height)
-            r_peaks = peaks
-        
-        pre_window = int(0.4 * fs)
-        post_window = int(0.6 * fs)
-        beat_length = pre_window + post_window
-        
-        beats_per_lead = {lead: [] for lead in channel_names}
-        
-        for peak in r_peaks:
-            start = peak - pre_window
-            end = peak + post_window
-            if start >= 0 and end <= n_samples:
-                beat_segment = signals[start:end, :]
-                for idx, lead in enumerate(channel_names):
-                    beats_per_lead[lead].append(beat_segment[:, idx])
-        
-        for lead in channel_names:
-            beats_per_lead[lead] = np.array(beats_per_lead[lead])
-        
-        median_beats = {}
-        for lead in channel_names:
-            if beats_per_lead[lead].size == 0:
-                continue
-            median_beats[lead] = np.median(beats_per_lead[lead], axis=0)
-        
-        if not median_beats:
-            logging.warning(f"No median beats computed for {rec_path}. Skipping plot.")
-            return False
-        
-        time_axis = np.linspace(-pre_window / fs, post_window / fs, beat_length)
-        
-        n_rows = 3
-        n_cols = 4
-        
-        figsize_inches = (5.12, 5.12)
-        dpi = 100
-        
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize_inches, dpi=dpi)
-        
-        for idx, lead in enumerate(channel_names):
-            row = idx // n_cols
-            col = idx % n_cols
-            ax = axes[row, col]
-            
-            if lead not in median_beats:
-                ax.set_title(f'Lead {lead} (No Data)', fontsize=8)
-                ax.axis('off')
-                continue
-            
-            median_beat = median_beats[lead]
-            ax.plot(time_axis, median_beat, color='blue', linewidth=1)
-            ax.set_title(f'Lead {lead}', fontsize=10)
-            ax.grid(True, linewidth=0.5)
-            ax.tick_params(axis='both', which='major', labelsize=6)
-        
-        total_plots = n_rows * n_cols
-        num_leads = len(channel_names)
-        if num_leads < total_plots:
-            for idx in range(num_leads, total_plots):
-                row = idx // n_cols
-                col = idx % n_cols
-                axes[row, col].axis('off')
-        
-        plt.tight_layout(rect=[0, 0, 1, 1])
-        
-        record_name = os.path.basename(rec_path)
-        output_image_path = os.path.join(output_dir, f"{record_name}.{image_format}")
-        plt.savefig(output_image_path, format=image_format)
-        plt.close(fig)
-        logging.info(f"Successfully processed and saved {output_image_path}.")
-        return True
-    
-    except Exception as e:
-        logging.error(f"Error processing {rec_path}: {e}")
-        print(f"Error processing {rec_path}: {e}")
-        return False
-
-if __name__ == "__main__":
-    main()
-
-
 
 # import os
 # import wfdb
