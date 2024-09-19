@@ -372,7 +372,7 @@ def preprocess_v1(
     # print(sources)
     # print(len(sources))
     # rint(sources)
-    assert len(sources[0]) == 10, "something is off"
+    assert len(sources[0]) == 8, "something is off"
     permuteation = True
 
     for i, source in enumerate(sources):

@@ -573,7 +573,7 @@ class RewardModel_ACS:
         ]
 
         align_bonus = []
-        if outcomes[-1] in ["stemi", "nstemi", "normal"]
+        if outcomes[-1] in ["stemi", "nstemi", "normal"]:
             if (outcomes[-1] == "stemi") and (outcomes[0] == True):
                 align_bonus.append(1)
             elif (outcomes[-1] == "nstemi") and (outcomes[0] == False):
