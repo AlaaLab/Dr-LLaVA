@@ -62,7 +62,7 @@ from models.rl_trainer import (
     remove_image_token,
     truncate_after_eos_with_padding,
 )
-from models.rl_models import get_first_response
+from models.rl_models import get_prompt_image_first_question as get_first_response
 
 AnyPath = Union[str, os.PathLike, pathlib.Path]
 AnyPathOrNone = Optional[AnyPath]

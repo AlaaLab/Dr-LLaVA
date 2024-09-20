@@ -1,18 +1,26 @@
 #!/bin/bash
+#$ -cwd                    # Use the current working directory
+#$ -j yes                   # Use the current working directory
+#$ -q gpu.q
+#$ -pe smp 4               # slots (threads)
+#$ -l gpu_mem=75G        # Gigabytes of memory per thread (total 20 * 10G = 200 G)
+#$ -R y
+#$ -V
+#$ -l h_rt=100:50:00        # job time
 
 export PATH=$PATH:[PATH_TO_CONDA_ENV]/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:[PATH_TO_ANACONDA]/lib/
-source [PATH_TO_ANACONDA]/etc/profile.d/conda.sh
-
+export PATH=$PATH:~/miniconda3/envs/LLM_env/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/wynton/protected/home/ibrahim/alex_schubert/miniconda3/lib
+source /wynton/protected/home/ibrahim/alex_schubert/miniconda3/etc/profile.d/conda.sh
 set -e
 set -x
-
 module load cuda/11.5
-conda activate [YOUR_ENVIRONMENT_NAME]
+
+conda activate LLM_env
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-export DATA_DIR="/path/to/your/data/directory"
-export MODEL_DIR="/path/to/model/directory"
+export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json"
+export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints" #"/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints"
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export GPUS_PER_NODE=4
 export OMP_NUM_THREADS=8
@@ -22,11 +30,11 @@ export TRANSFORMERS_OFFLINE=1
 POLICY_BASE_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 RM_BASE_MODEL_NAME=LLaVA-RLHF-13b-v1.5-336/sft_model
 
-POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding/lora_default
+POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v0/lora_default
 RM_LORA=LLaVA-Fact-RM-13b-v1.5-336-lora-padding/checkpoint-200
 
 # SAVE CONFIG
-MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding
+MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-v0
 
 # TRAINING CONFIG
 LEARNING_RATE=3e-5
@@ -63,7 +71,7 @@ torchrun \
     --learning_rate $LEARNING_RATE \
     --init_value_with_reward True \
     --warmup_steps 5 \
-    --dataset_path "/path/to/dataset.json" \
+    --dataset_path "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json" \
     --train_splits "train" \
     --output_dir "$MODEL_DIR/$MODEL_NAME" \
     --total_epochs $EPOCH \
@@ -95,7 +103,7 @@ torchrun \
     --query_len 256 \
     --response_len 224 \
     --noptepochs $NOPTEPOCHS \
-    --image_folder "/path/to/image/folder" \
+    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder" \
     --vision_tower different \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \

@@ -68,7 +68,7 @@ class QueryResponseDataset(Dataset):
             __a = []
 
             assert __s[-1]["from"] == "gpt", f"{__s}"
-            if len(__s) == 10:
+            if len(__s) == 8:
                 __s[0]["value"] = __s[0]["value"].split(". ")[-1]
                 __a.append(__s[1]["value"] + "order 1")
                 __s[1]["value"] = "order 1\n"
@@ -81,9 +81,9 @@ class QueryResponseDataset(Dataset):
                 __s[6]["value"] = __s[6]["value"].split(". ")[-1]
                 __a.append(__s[7]["value"] + "order 4")
                 __s[7]["value"] = "order 4\n"
-                __s[8]["value"] = __s[8]["value"].split(". ")[-1]
-                __a.append(__s[9]["value"] + "order 5")
-                __s[9]["value"] = "order 5\n"
+                # __s[8]["value"] = __s[8]["value"].split(". ")[-1]
+                # __a.append(__s[9]["value"] + "order 5")
+                # __s[9]["value"] = "order 5\n"
 
             else:
                 __s[-1]["value"] = "\n"
@@ -93,7 +93,7 @@ class QueryResponseDataset(Dataset):
                 qa_pairs = [
                     [source[i], source[i + 1]] for i in range(0, len(source), 2)
                 ]
-                for i in range(5):
+                for i in range(4): #5
                     qa_pairs[i][0]["value"] = qa_pairs[i][0]["value"].replace(
                         "<image>\n", ""
                     )
@@ -107,13 +107,13 @@ class QueryResponseDataset(Dataset):
             __s = permute_qa_pairs(__s)
             orders = [
                 int(__s[2 * i + 1]["value"].split(" ")[-1].split("\n")[0])
-                for i in range(5)
+                for i in range(4) #5
             ]
             __s[1]["value"] = "\n"
             __s[3]["value"] = "\n"
             __s[5]["value"] = "\n"
             __s[7]["value"] = "\n"
-            __s[9]["value"] = "\n"
+            # __s[9]["value"] = "\n"
 
             __a_new = []
             for num in orders:

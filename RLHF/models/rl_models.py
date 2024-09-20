@@ -225,7 +225,7 @@ class AutoregressivePolicy(Policy):
             # 1. the first question is always the same
             # 2. there are 5 questions in total.
             # 3. if you design have a different rounds of conversation, you need to change the number of rounds here
-            s_queries, s_query_attn_masks, s_images = get_follow_up_questions(
+            s_queries, s_query_attn_masks = get_follow_up_questions( #, s_images
                 queries, query_attn_masks, images, _order=i
             )
 
@@ -683,3 +683,147 @@ def get_follow_up_questions(queries, queries_attention_mask, images, _order=None
     )
 
     return queries, attentions
+
+
+def get_first_response(queries, queries_attention_mask, images, ):
+    assert queries.shape[0] == queries_attention_mask.shape[0] == images.shape[0], 'the dimension does not match with each other'
+    final_queries_list = []
+    final_attention_list = []
+    final_image_stacks = []
+    for _index  in range(queries.shape[0]):
+        split_indices = (queries[_index] == 29871).nonzero(as_tuple=True)[0]     
+        start_idx = 0
+        p = 0
+        
+        promt_and_image = []
+        question_list = []
+
+        attention_promt_and_image = []
+        attention_question_list = []
+
+
+        prepare_question_attention_list = []
+        prepare_question_list = []
+        
+        for idx in split_indices:
+            
+            if p <=1:
+                
+                    
+                promt_and_image.append(queries[_index][start_idx:idx+1])
+                attention_promt_and_image.append(queries_attention_mask[_index][start_idx:idx+1])
+                        # Slice the tensor from the current start index to the current 29871 index
+                p+=1
+                start_idx = idx + 1
+
+                if p ==2:
+                    prompt = torch.cat(promt_and_image)
+                    attention_prompt = torch.cat(attention_promt_and_image)
+            else:
+                prepare_question_list.append(torch.cat([prompt, queries[_index][start_idx:idx]]))
+                prepare_question_attention_list.append(torch.cat([attention_prompt,queries_attention_mask[_index][start_idx:idx]]))
+                start_idx = idx + 1
+                p = p+1
+                break
+        
+        #prepare_question_list.append(torch.cat([prompt,queries[_index][start_idx:]]))
+        #prepare_question_attention_list.append(torch.cat([attention_prompt,queries_attention_mask[_index][start_idx:]]))
+        
+        
+        length = prepare_question_list[0].size(0)
+        prepare_question = prepare_question_list[0].view(1, length)
+        prepare_question_attention = prepare_question_attention_list[0].view(1, length)
+
+        
+        unsqueezed_tensor = images[_index].unsqueeze(0)
+        _images = unsqueezed_tensor.repeat(len(prepare_question_list), 1, 1, 1)
+        final_image_stacks.append(_images)
+        final_queries_list.append(prepare_question)
+        final_attention_list.append(prepare_question_attention)
+
+    
+
+    images = torch.cat(final_image_stacks, axis = 0) 
+    #print('Largest tensor size')
+    #print(max([x.size(1) for x in final_queries_list ]))
+    queries = pad_and_stack_tensors(final_queries_list,target_size=max([x.size(1) for x in final_queries_list]))
+    
+    attentions = pad_and_stack_tensors(final_attention_list,target_size=max([x.size(1) for x in final_attention_list]))
+    
+    return queries, attentions, images
+
+def get_single_response(queries, queries_attention_mask, images,_order =None):
+    assert queries.shape[0] == queries_attention_mask.shape[0] == images.shape[0], 'the dimension does not match with each other'
+    final_queries_list = []
+    final_attention_list = []
+    final_image_stacks = []
+    for _index  in range(queries.shape[0]):
+        split_indices = (queries[_index] == 29871).nonzero(as_tuple=True)[0]     
+        start_idx = 0
+        p = 0
+        
+        promt_and_image = []
+        question_list = []
+
+        attention_promt_and_image = []
+        attention_question_list = []
+
+
+
+
+        prepare_question_attention_list = []
+        prepare_question_list = []
+        final_case = False
+        for idx in split_indices:
+            
+            if p <=1:
+                
+                    
+                promt_and_image.append(queries[_index][start_idx:idx+1])
+                attention_promt_and_image.append(queries_attention_mask[_index][start_idx:idx+1])
+                        # Slice the tensor from the current start index to the current 29871 index
+                p+=1
+                start_idx = idx + 1
+
+                if p ==2:
+                    prompt = torch.cat(promt_and_image)
+                    attention_prompt = torch.cat(attention_promt_and_image)
+            else:
+                if p ==_order+1:
+                    prepare_question_list.append(queries[_index][start_idx:idx])
+                    prepare_question_attention_list.append(queries_attention_mask[_index][start_idx:idx])
+                    final_case = False
+                    break
+                start_idx = idx + 1
+                p = p+1
+                final_case = True
+            
+                
+        if final_case:
+            assert len(prepare_question_list) ==0, 'shall be empty'
+            prepare_question_list.append(queries[_index][start_idx:])
+            prepare_question_attention_list.append(queries_attention_mask[_index][start_idx:])
+        
+        
+        length = prepare_question_list[0].size(0)
+        prepare_question = prepare_question_list[0].view(1, length)
+        prepare_question_attention = prepare_question_attention_list[0].view(1, length)
+
+       
+
+        
+        unsqueezed_tensor = images[_index].unsqueeze(0)
+        _images = unsqueezed_tensor.repeat(len(prepare_question_list), 1, 1, 1)
+        final_image_stacks.append(_images)
+        final_queries_list.append(prepare_question)
+        final_attention_list.append(prepare_question_attention)
+
+    #images = torch.cat(final_image_stacks, axis = 0) 
+    #queries = torch.cat(final_queries_list,  axis = 0)
+    #attentions = torch.cat(final_attention_list, axis = 0)
+    images = torch.cat(final_image_stacks, axis = 0) 
+    queries = pad_and_stack_tensors(final_queries_list,target_size=max([x.size(1) for x in final_queries_list]))
+    
+    attentions = pad_and_stack_tensors(final_attention_list,target_size=max([x.size(1) for x in final_attention_list]))
+
+    return queries, attentions, images 
