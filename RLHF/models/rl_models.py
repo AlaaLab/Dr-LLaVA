@@ -234,6 +234,22 @@ class AutoregressivePolicy(Policy):
             together_attention = torch.cat(
                 [together_attention, answers_attention_mask, s_query_attn_masks], dim=1
             )
+            
+            print(i)
+            print('answer')
+            print(answers_tokens.shape)
+            print('answer_attention')
+            print(answers_attention_mask.shape)
+            print('query')
+            print(s_queries.shape)
+            print('query attention')
+            print(s_query_attn_masks.shape)
+            
+            print('together')
+            print(together.shape)
+            print('together attention')
+            print(together_attention.shape)
+            print('-----------------')
 
             sequences = self.base_model.generate(
                 inputs=together,

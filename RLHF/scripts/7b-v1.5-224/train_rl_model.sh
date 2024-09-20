@@ -2,7 +2,7 @@
 #$ -cwd                    # Use the current working directory
 #$ -j yes                   # Use the current working directory
 #$ -q gpu.q
-#$ -pe smp 4               # slots (threads)
+#$ -pe smp 1               # slots (threads)
 #$ -l gpu_mem=75G        # Gigabytes of memory per thread (total 20 * 10G = 200 G)
 #$ -R y
 #$ -V

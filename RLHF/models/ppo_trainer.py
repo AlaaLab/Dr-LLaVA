@@ -283,7 +283,7 @@ class PPOTrainer(RLTrainer):
                 "queries": queries,
                 "query_attn_masks": query_attn_masks,
                 "responses": responses,
-                "AQAQAQAQA": question_masks,
+                "AnswerQuestionMASK": question_masks, #AQAQAQAQA
             }
 
             # Evaluate logprobs of the samples.

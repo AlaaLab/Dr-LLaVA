@@ -595,8 +595,8 @@ class RewardModel_ACS:
         # length_bonus is calculated if the length of the outcomes is the same as the length of the ref_answers has more than 10 letters difference
         length_bonus = [
             (
-                -math.abs(len(x) - len(y)) / 10
-                if (math.abs(len(x) - len(y)) / 10) > 1
+                -abs(len(x) - len(y)) / 10
+                if (abs(len(x) - len(y)) / 10) > 1
                 else 0
             )
             for x, y in zip(outcomes, gt)
@@ -834,8 +834,8 @@ class RewardModel_HEME:
         # length_bonus is calculated if the length of the outcomes is the same as the length of the ref_answers has more than 10 letters difference
         length_bonus = [
             (
-                -math.abs(len(x) - len(y)) / 10
-                if (math.abs(len(x) - len(y)) / 10) > 1
+                -abs(len(x) - len(y)) / 10
+                if (abs(len(x) - len(y)) / 10) > 1
                 else 0
             )
             for x, y in zip(outcomes, gt)
