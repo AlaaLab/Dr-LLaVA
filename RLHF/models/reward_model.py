@@ -517,7 +517,7 @@ class RewardModel_ACS:
         ):
             return True
         elif exist_in_sentence(
-            sentences, ["cannot", "not", "no"]
+            sentences, ["cannot", "not", "no", "unnecessary"]
         ):
             return False
         else:
@@ -526,13 +526,13 @@ class RewardModel_ACS:
     def _diagnosis(self, sentences):
         sentences = sentences.lower()
         if exist_in_sentence(
-            sentences, ["stemi", "st elevation"]
+            sentences, ["stemi", "st elevation", 'st elevation myocardial infarction']
          ) and no_exist_in_sentence(
             sentences, [" not ", " no ", " absen"]
          ):
             return "stemi"
         elif exist_in_sentence(
-            sentences, ["nstemi", "st elevation"]
+            sentences, ["nstemi", "no st elevation", "non-st elevation myocardial infarction", "non st elevation myocardial infarction"]
         ):
             return "nstemi"
         else:
