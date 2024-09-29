@@ -180,7 +180,7 @@ def eval_model(args):
                 num_beams=args.num_beams,
                 # no_repeat_ngram_size=3,
                 max_new_tokens=64 if args.short_eval else 1024,
-                # stopping_criteria=[stopping_criteria],
+                stopping_criteria=[stopping_criteria],
                 use_cache=False,
             )
 

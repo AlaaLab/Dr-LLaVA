@@ -197,7 +197,7 @@ def eval_model(args):
                     num_beams=args.num_beams,
                     # no_repeat_ngram_size=3,
                     max_new_tokens=64 if args.short_eval else 1024,
-                    # stopping_criteria=[stopping_criteria],
+                    stopping_criteria=[stopping_criteria],
                     use_cache=False,
                 )
 
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-base", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RLHF-7b-v1.5-224/sft_model")
     parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder")
     parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/eval.json")
-    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/qa_answer.jsonl")
+    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/new_sft_conversation.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)

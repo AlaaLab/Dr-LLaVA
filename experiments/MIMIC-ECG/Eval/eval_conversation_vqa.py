@@ -3,6 +3,8 @@ import json
 import os
 from torch import Tensor
 from transformers.utils.generic import ModelOutput
+import numpy as np
+from sklearn.metrics import precision_recall_fscore_support as score, accuracy_score
 
 class RewardModelOutput(ModelOutput):
     rewards: Tensor = None
@@ -210,41 +212,20 @@ if __name__ == "__main__":
     problems = json.load(open(os.path.join(base_dir, "test_conversations.json")))
     predictions = [json.loads(line) for line in open(args.result_file)]
 
-    correct_q = 0
-    total_q = 0
-
-    correct_c = 0
-    total_c = 0
-
-    correct_d = 0
-    total_d = 0
-
-    analysis_positive = {
-        'stemi': 0,
-        'nstemi': 0,
-        'normal': 0,
-    }
-
-    sensitivity = {
-        'stemi': [0, 0], # TP, FN
-        'nstemi': [0, 0],
-        'normal': [0, 0],
-    }
+    y_pred = []
+    y_true = []
 
     for i, prob in enumerate(problems):
         preds = predictions[i*4:(i+1)*4]
         convs = prob['conversations']
-        cnt = 0
-        cnt += rm._check_st_elevation(preds[0]['text']) == rm._check_st_elevation(convs[1]['value'])
-        cnt += rm._check_st_depression_or_t_wave(preds[1]['text']) == rm._check_st_depression_or_t_wave(convs[3]['value'])
-        cnt += rm._ordering_troponin_test(preds[2]['text']) == rm._ordering_troponin_test(convs[5]['value'])
-        cnt += rm._diagnosis(preds[3]['text']) == rm._diagnosis(convs[7]['value'])
-        
-        correct_q += cnt
-        total_q += 4
-        
-        correct_c += cnt == 4
-        total_c += 1
+
+        y_pred.append([
+            rm._check_st_elevation(preds[0]['text']),
+            rm._check_st_depression_or_t_wave(preds[1]['text']),
+            rm._ordering_troponin_test(preds[2]['text']),
+            rm._diagnosis(preds[3]['text']),
+        ])
+
 
         pred_diagnose = 'normal'
         if preds[3]['text'] == 'Yes':
@@ -252,20 +233,40 @@ if __name__ == "__main__":
                 pred_diagnose = 'stemi'
             else:
                 pred_diagnose = 'nstemi'
+        y_pred[-1][-1] = pred_diagnose
 
+        y_true.append([
+            rm._check_st_elevation(convs[1]['value']),
+            rm._check_st_depression_or_t_wave(convs[3]['value']),
+            rm._ordering_troponin_test(convs[5]['value']),
+            rm._diagnosis(convs[7]['value']),
+        ])
 
-        correct_d += pred_diagnose == rm._diagnosis(convs[7]['value'])
-        total_d += 1
+    y_pred = np.array(y_pred)
+    y_true = np.array(y_true)
 
-        sensitivity[rm._diagnosis(convs[7]['value'])][0] += pred_diagnose == rm._diagnosis(convs[7]['value'])
-        sensitivity[rm._diagnosis(convs[7]['value'])][1] += 1
+    for i in range(4):
+        precision, recall, fscore, support = score(y_true[:,i], y_pred[:,i], average='macro')
 
-        if rm._diagnosis(convs[7]['value']) == 'nstemi' or rm._diagnosis(convs[7]['value']) == 'stemi':
-            print('Answer:', convs[7]['value'])
-            print('Prediction:', preds[3]['text'])
-            print('---')
+        print('accuracy: {}'.format(accuracy_score(y_true[:,i], y_pred[:,i])))
+        print('precision: {}'.format(precision))
+        print('recall: {}'.format(recall))
+        print('fscore: {}'.format(fscore))
+        print('support: {}'.format(support))
 
-    print(f'A_Q: Total: {total_q}, Correct: {correct_q}, Accuracy: {correct_q / total_q * 100:.2f}%')
-    print(f'A_C: Total: {total_c}, Correct: {correct_c}, Accuracy: {correct_c / total_c * 100:.2f}%')
-    print(f'A_D: Total: {total_d}, Correct: {correct_d}, Accuracy: {correct_d / total_d * 100:.2f}%')
-    print('Sensitivity: ', sensitivity)
+    precision, recall, fscore, support = score(y_true.flatten(), y_pred.flatten(), average='macro')
+    print('accuracy: {}'.format(accuracy_score(y_true.flatten(), y_pred.flatten())))
+    print('precision: {}'.format(precision))
+    print('recall: {}'.format(recall))
+    print('fscore: {}'.format(fscore))
+    print('support: {}'.format(support))
+
+    y_true = [ ''.join(y.tolist()) for y in y_true ]
+    y_pred = [ ''.join(y.tolist()) for y in y_pred ]
+
+    precision, recall, fscore, support = score(y_true, y_pred, average='macro')
+    print('accuracy: {}'.format(accuracy_score(y_true, y_pred)))
+    print('precision: {}'.format(precision))
+    print('recall: {}'.format(recall))
+    print('fscore: {}'.format(fscore))
+    print('support: {}'.format(support))
