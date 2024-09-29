@@ -49,53 +49,15 @@ def eval_model(args):
     model_path = os.path.expanduser(args.model_path)
     model_name = get_model_name_from_path(model_path)
     compute_dtype = torch.float16
-    if args.use_qlora:
-        tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
 
-        bits = 16
-        dtype = torch.bfloat16
-        compute_dtype = torch.bfloat16
+    tokenizer, model, image_processor, context_len = load_pretrained_model(
+        model_path, args.model_base, model_name
+    )
 
-        model = LlavaLlamaForCausalLM.from_pretrained(
-            model_path,
-            device_map={"": "cuda:0"},
-            torch_dtype=dtype,
-            load_in_4bit=(bits == 4),
-            load_in_8bit=(bits == 8),
-            quantization_config=BitsAndBytesConfig(
-                load_in_4bit=(bits == 4),
-                load_in_8bit=(bits == 8),
-                llm_int8_threshold=6.0,
-                llm_int8_skip_modules=["mm_projector", "lm_head"],
-                llm_int8_has_fp16_weight=False,
-                bnb_4bit_compute_dtype=compute_dtype,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-            ),
-        )
-        model = PeftModel.from_pretrained(
-            model,
-            args.qlora_path,
-        )
-
-        mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
-        mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
-        if mm_use_im_patch_token:
-            tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN], special_tokens=True)
-        if mm_use_im_start_end:
-            tokenizer.add_tokens(
-                [DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True
-            )
-        model.resize_token_embeddings(len(tokenizer))
-
-        vision_tower = model.get_vision_tower()
-        if not vision_tower.is_loaded:
-            vision_tower.load_model()
-        vision_tower.to(device="cuda", dtype=compute_dtype)
-        image_processor = vision_tower.image_processor
-    else:
-        tokenizer, model, image_processor, context_len = load_pretrained_model(
-            model_path, args.model_base, model_name
+    if lora_path is not None:
+        self.model = PeftModel.from_pretrained(
+            self.model,
+            lora_path,
         )
 
 
@@ -181,7 +143,7 @@ def eval_model(args):
                 # no_repeat_ngram_size=3,
                 max_new_tokens=64 if args.short_eval else 1024,
                 stopping_criteria=[stopping_criteria],
-                use_cache=False,
+                use_cache=True,
             )
 
         input_token_len = input_ids.shape[1]
@@ -231,8 +193,7 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
-    parser.add_argument("--use-qlora", type=bool, default=False)
-    parser.add_argument("--qlora-path", type=str, default="")
+    parser.add_argument("--lora-path", type=str, default=None)
     parser.add_argument("--short_eval", type=bool, default=False)
     parser.add_argument("--image_aspect_ratio", type=str, default="pad")
     parser.add_argument(
