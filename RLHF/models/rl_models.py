@@ -115,13 +115,15 @@ class AutoregressivePolicy(Policy):
 
         if temperature is None:
             temperature = self.args.temperature
-        # print(queries.size())
+        # print(f'Query size received from dataset {queries.size()}')
         # print(responses.size())
 
         # get First Q
         _queries, _query_attn_masks, _images = get_prompt_image_first_question(
             queries, query_attn_masks, images
         )
+
+        #print(f'Query size in policy {_queries.size()}')
 
         input_ids = torch.cat([_queries, responses], dim=1)
         attention_mask = input_ids.ne(self.base_tokenizer.pad_token_id)
@@ -138,6 +140,14 @@ class AutoregressivePolicy(Policy):
         original_logits = outputs.logits[:, -self.args.response_len - 1 : -1]
         logits = original_logits / temperature
         labels = input_ids[:, -self.args.response_len :]
+
+        #TODO check this is a hack to align the mask and response lengths
+        AnswerQuestionMASK = AnswerQuestionMASK[:, -self.args.response_len :]
+
+        # print(f'AnswerQuestionMASK shape: {AnswerQuestionMASK.size()}')
+        # print(f'labels shape: {labels.size()}')
+        # print(f'pad token id shape: {self.base_tokenizer.pad_token_id}')
+
         labels[AnswerQuestionMASK == self.base_tokenizer.pad_token_id] = (
             self.base_tokenizer.pad_token_id
         )
@@ -166,97 +176,93 @@ class AutoregressivePolicy(Policy):
         temperature: Optional[float] = None,
         num_return_sequences=1,
     ) -> Dict[str, Tensor]:
+        
         if self.adapter_name is not None:
             self.base_model.set_adapter(self.adapter_name)
         self.base_model.config.use_cache = True
-        self.base_model.config.cache_shape = (
-            queries.shape[-1]
-            + self.args.response_len
-            + self.base_model.get_vision_tower().num_patches,
-        )
+        
 
         if temperature is None:
             temperature = self.args.temperature
 
+        # Initialize conversation history if not already present
+        #if not hasattr(self, 'conversation_history'):
+        # self.conversation_history = get_prompt_image_first_question(
+        #     queries, query_attn_masks, images
+        # )
+
+        # current_queries, current_query_attn_masks, current_images = self.conversation_history
+        conversation_queries, conversation_attn_masks, conversation_images = get_prompt_image_first_question(
+        queries, query_attn_masks, images
+        )
+
+        # Initialize containers for conversation history and answers
+        together = conversation_queries.clone()
+        together_attention = conversation_attn_masks.clone()
+
+        question_answers = torch.ones(together.size())
+
         # queries, query_attn_masks, images = get_different_response(queries, query_attn_masks, images)
 
-        _queries, _query_attn_masks, _images = get_prompt_image_first_question(
-            queries, query_attn_masks, images
-        )
+        # _queries, _query_attn_masks, _images = get_prompt_image_first_question(
+        #     queries, query_attn_masks, images
+        # )
 
-        sequences = self.base_model.generate(
-            inputs=_queries,
-            images=_images,
-            attention_mask=_query_attn_masks,
-            do_sample=True,
-            max_new_tokens=self.args.response_len,
-            pad_token_id=self.base_tokenizer.pad_token_id,
-            suppress_tokens=(
-                [self.base_tokenizer.eos_token_id]
-                if self.args.suppress_eos_at_generation
-                else None
-            ),
-            top_p=1.0,
-            top_k=0,
-            temperature=temperature,
-            num_return_sequences=num_return_sequences,
-            synced_gpus=True,
-        )
-        responses = sequences[:, _queries.size(1) :]
+        # sequences = self.base_model.generate(
+        #     inputs=current_queries,
+        #     images=current_images,
+        #     attention_mask=current_query_attn_masks,
+        #     do_sample=True,
+        #     max_new_tokens=self.args.response_len,
+        #     pad_token_id=self.base_tokenizer.pad_token_id,
+        #     suppress_tokens=(
+        #         [self.base_tokenizer.eos_token_id]
+        #         if self.args.suppress_eos_at_generation
+        #         else None
+        #     ),
+        #     top_p=1.0,
+        #     top_k=0,
+        #     temperature=temperature,
+        #     num_return_sequences=num_return_sequences,
+        #     synced_gpus=True,
+        # )
+        # #responses = sequences[:, _queries.size(1) :]
+        # new_responses = sequences[:, current_queries.size(1):]
 
-        texts = self.base_tokenizer.batch_decode(
-            responses,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )
+        # texts = self.base_tokenizer.batch_decode(
+        #     new_responses,
+        #     skip_special_tokens=True,
+        #     clean_up_tokenization_spaces=False,
+        # )
 
-        encoded_input = self.base_tokenizer(
-            texts, padding=True, truncation=True, return_tensors="pt"
-        ).to("cuda")
-        answers_tokens = encoded_input["input_ids"]
-        answers_attention_mask = encoded_input["attention_mask"]
-        together = _queries.clone()
-        together_attention = _query_attn_masks.clone()
 
-        question_answers = torch.ones(answers_tokens.size()) * 147
+
+        # encoded_input = self.base_tokenizer(
+        #     texts, padding=True, truncation=True, return_tensors="pt"
+        # ).to("cuda")
+        # answers_tokens = encoded_input["input_ids"]
+        # answers_attention_mask = encoded_input["attention_mask"]
+        # together = _queries.clone()
+        # together_attention = _query_attn_masks.clone()
+
+        # question_answers = torch.ones(answers_tokens.size()) * 147
         random.seed()
-        for i in range(2, 5):#CHANG TO 5 as we have 4 questions
-            # hack the system here because 
-            # 1. the first question is always the same
-            # 2. there are 5 questions in total.
-            # 3. if you design have a different rounds of conversation, you need to change the number of rounds here
-            s_queries, s_query_attn_masks = get_follow_up_questions( #, s_images
-                queries, query_attn_masks, images, _order=i
+        for i in range(2, 7):#CHANG TO 5 as we have 4 questions
+            
+            # Update cache_shape to accommodate new tokens
+            self.base_model.config.cache_shape = (
+            together.shape[-1]
+            + self.args.response_len
+            + self.base_model.get_vision_tower().num_patches,
             )
 
-            together = torch.cat([together, answers_tokens, s_queries], dim=1)
-
-            together_attention = torch.cat(
-                [together_attention, answers_attention_mask, s_query_attn_masks], dim=1
-            )
-            
-            print(i)
-            print('answer')
-            print(answers_tokens.shape)
-            print('answer_attention')
-            print(answers_attention_mask.shape)
-            print('query')
-            print(s_queries.shape)
-            print('query attention')
-            print(s_query_attn_masks.shape)
-            
-            print('together')
-            print(together.shape)
-            print('together attention')
-            print(together_attention.shape)
-            print('-----------------')
-
+            # Generate new response tokens
             sequences = self.base_model.generate(
                 inputs=together,
-                images=_images,
+                images=conversation_images,
                 attention_mask=together_attention,
                 do_sample=True,
-                max_new_tokens=100,  # Hack here because almost all the answers are less than even 30 tokens
+                max_new_tokens=self.args.response_len,
                 pad_token_id=self.base_tokenizer.pad_token_id,
                 suppress_tokens=(
                     [self.base_tokenizer.eos_token_id]
@@ -269,44 +275,163 @@ class AutoregressivePolicy(Policy):
                 num_return_sequences=num_return_sequences,
                 synced_gpus=True,
             )
-            _responses = sequences[:, together.size(1) :]
 
+            # Extract the newly generated response tokens
+            new_responses = sequences[:, together.size(1):]
+
+
+            # Decode the new responses to text
             texts = self.base_tokenizer.batch_decode(
-                _responses,
+                new_responses,
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=False,
             )
 
+            # Encode the new responses back to tokens
             encoded_input = self.base_tokenizer(
                 texts, padding=True, truncation=True, return_tensors="pt"
             ).to("cuda")
             answers_tokens = encoded_input["input_ids"]
             answers_attention_mask = encoded_input["attention_mask"]
 
-            question_answers = torch.cat(
-                [
-                    question_answers,
-                    torch.ones(s_queries.size()),
-                    torch.ones(answers_tokens.size()) * 147,
-                ],
-                dim=1,
+            MAX_RESPONSE_LENGTH = 200
+            if answers_tokens.size(1) > MAX_RESPONSE_LENGTH:
+                answers_tokens = answers_tokens[:, -MAX_RESPONSE_LENGTH:]
+                answers_attention_mask = answers_attention_mask[:, -MAX_RESPONSE_LENGTH:]
+
+            # Append the new responses to the conversation history
+            together = torch.cat([together, answers_tokens], dim=1)
+            together_attention = torch.cat(
+                [together_attention, answers_attention_mask], dim=1
             )
 
-        responses = sequences[:, _queries.size(1) :]
+            if i==6:
+                # Update AnswerQuestionMASK
+                question_answers = torch.cat(
+                    [
+                        question_answers,
+                        torch.ones(answers_tokens.size()) * 147,
+                    ],
+                    dim=1,
+                )
+            else:
+                # Generate follow-up questions based on the latest response
+                follow_up_queries, follow_up_attn_masks = get_follow_up_questions(
+                    queries, query_attn_masks, images, _order=i  
+                )
+    
+                # Append the follow-up queries to the conversation history
+                together = torch.cat([together, follow_up_queries], dim=1)
+                together_attention = torch.cat(
+                    [together_attention, follow_up_attn_masks], dim=1
+                )
+    
+                # Update AnswerQuestionMASK
+                question_answers = torch.cat(
+                    [
+                        question_answers,
+                        torch.ones(answers_tokens.size()) * 147,
+                        torch.ones(follow_up_queries.size()), #.to(question_answers.device)
+                    ],
+                    dim=1,
+                )
+
+            # # hack the system here because 
+            # # 1. the first question is always the same
+            # # 2. there are 5 questions in total.
+            # # 3. if you design have a different rounds of conversation, you need to change the number of rounds here
+            # s_queries, s_query_attn_masks = get_follow_up_questions( #, s_images
+            #     queries, query_attn_masks, images, _order=i
+            # )
+
+            # together = torch.cat([together, answers_tokens, s_queries], dim=1)
+
+            # together_attention = torch.cat(
+            #     [together_attention, answers_attention_mask, s_query_attn_masks], dim=1
+            # )
+            
+            # # print(f"Epoch QA iteration: {i}")
+            # # print('-----------------')
+            # # print(f'answer: {answers_tokens.shape} |||| answer attention: {answers_attention_mask.shape}')
+            # # print('-----------------')
+            # # print(f'query: {s_queries.shape} |||| query attention: {s_query_attn_masks.shape}')
+            # # print('-----------------')
+            # # print('together and together attention shapes')
+            # # print(f'together: {together.shape} |||| together attention: {together_attention.shape} ')
+            # # print('-----------------')
+
+
+            #  # Update cache_shape before each generate call
+            # self.base_model.config.cache_shape = (
+            #     together.shape[-1]
+            #     + self.args.response_len
+            #     + self.base_model.get_vision_tower().num_patches,
+            # )
+
+            # previous_together_length = together.size(1)
+
+            # sequences = self.base_model.generate(
+            #     inputs=together,
+            #     images=_images,
+            #     attention_mask=together_attention,
+            #     do_sample=True,
+            #     max_new_tokens=200,  # Hack here because almost all the answers are less than even 30 tokens
+            #     pad_token_id=self.base_tokenizer.pad_token_id,
+            #     suppress_tokens=(
+            #         [self.base_tokenizer.eos_token_id]
+            #         if self.args.suppress_eos_at_generation
+            #         else None
+            #     ),
+            #     top_p=1.0,
+            #     top_k=0,
+            #     temperature=temperature,
+            #     num_return_sequences=num_return_sequences,
+            #     synced_gpus=True,
+            # )
+            # _responses = sequences[:, previous_together_length :]
+
+            # texts = self.base_tokenizer.batch_decode(
+            #     _responses,
+            #     skip_special_tokens=True,
+            #     clean_up_tokenization_spaces=False,
+            # )
+
+            # encoded_input = self.base_tokenizer(
+            #     texts, padding=True, truncation=True, return_tensors="pt"
+            # ).to("cuda")
+            # answers_tokens = encoded_input["input_ids"]
+            # answers_attention_mask = encoded_input["attention_mask"]
+
+            # question_answers = torch.cat(
+            #     [
+            #         question_answers,
+            #         torch.ones(s_queries.size()),
+            #         torch.ones(answers_tokens.size()) * 147,
+            #     ],
+            #     dim=1,
+            # )
+
+        #responses = sequences[:, _queries.size(1) :]
+        responses = together[:, conversation_queries.size(1) :]
+        print(f'response size: {responses.size()}')
+        question_answers = question_answers[:, conversation_queries.size(1) :]
+        #responses = torch.cat([together, _responses], dim=1)
+        #responses = sequences[:, :]
+        #responses = sequences[:, previous_together_length :]
 
         question_answers[question_answers == 1] = self.base_tokenizer.pad_token_id
-
         question_answers[question_answers == 147] = 1
 
+        max_seq_length = self.args.response_len #*4
         responses = right_pad(
             responses,
-            target_size=(sequences.size(0), self.args.response_len),
+            target_size=(responses.size(0), max_seq_length),#self.args.response_len
             value=self.base_tokenizer.pad_token_id,
         )
 
         question_answers = right_pad(
             question_answers,
-            target_size=(sequences.size(0), self.args.response_len),
+            target_size=(responses.size(0), max_seq_length),
             value=self.base_tokenizer.pad_token_id,
         )
 
@@ -560,7 +685,7 @@ def get_prompt_image_first_question(
 ):
     """
     Because the format in the conversation setup is 
-    prompt + {image} + first question + {RESPONSE} + second question + {RESPONSE} + third question + {RESPONSE} + fourth question + {RESPONSE} + fifth question + {RESPONSE}
+    prompt + {image} + first question + {RESPONSE} + second question + {RESPONSE} + third question + {RESPONSE} + fourth question + {RESPONSE}
     # THE FIRST RETRIVED MUST BE PROMPT AND IMAGE AND FIRST QUESTION
     """
     assert (
@@ -569,8 +694,13 @@ def get_prompt_image_first_question(
     final_queries_list = []
     final_attention_list = []
     final_image_stacks = []
+
+    # print(f'Query shape in rl models: {queries.shape[0]}')
+
     for _index in range(queries.shape[0]):
         split_indices = (queries[_index] == 29871).nonzero(as_tuple=True)[0]
+        #print(f'length of split_indices in rl_models {split_indices}')
+        
         start_idx = 0
         p = 0
 

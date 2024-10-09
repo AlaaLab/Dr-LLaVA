@@ -35,7 +35,7 @@ VISION_TOWER=openai/clip-vit-large-patch14
 LM_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 
 # SAVE CONFIG
-MODEL_NAME=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v0
+MODEL_NAME=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v2
 
 # TRAINING CONFIG
 NUM_EPOCHS=4

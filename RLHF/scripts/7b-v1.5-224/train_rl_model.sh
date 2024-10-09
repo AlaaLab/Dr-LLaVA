@@ -2,7 +2,7 @@
 #$ -cwd                    # Use the current working directory
 #$ -j yes                   # Use the current working directory
 #$ -q gpu.q
-#$ -pe smp 1               # slots (threads)
+#$ -pe smp 4               # slots (threads)
 #$ -l gpu_mem=75G        # Gigabytes of memory per thread (total 20 * 10G = 200 G)
 #$ -R y
 #$ -V
@@ -22,7 +22,7 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json"
 export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints" #"/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints"
 export PYTHONPATH="$PWD:$PYTHONPATH"
-export GPUS_PER_NODE=4
+export GPUS_PER_NODE=3
 export OMP_NUM_THREADS=8
 export TRANSFORMERS_OFFLINE=1
 
@@ -101,7 +101,7 @@ torchrun \
     --whiten_rewards True \
     --model_max_length 2048 \
     --query_len 256 \
-    --response_len 224 \
+    --response_len 768 \
     --noptepochs $NOPTEPOCHS \
     --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder" \
     --vision_tower different \

@@ -448,7 +448,7 @@ class RewardModel_ACS:
     Please edit the below functions to match the user case
     """
 
-    def __init__(self, align_lambda=2):
+    def __init__(self, align_lambda=1.5):
         self.align_lambda = align_lambda
         self.knowledge = {
             "NORMAL": [False, False, False, "normal"], #All paths possible, no alignment reward thus
@@ -526,17 +526,35 @@ class RewardModel_ACS:
     def _diagnosis(self, sentences):
         sentences = sentences.lower()
         if exist_in_sentence(
-            sentences, ["stemi", "st elevation", 'st elevation myocardial infarction']
+            sentences, ["stemi", 'st elevation myocardial infarction']
          ) and no_exist_in_sentence(
             sentences, [" not ", " no ", " absen"]
-         ):
+         ) or (exist_in_sentence(
+            sentences, ['myocardial infarction', 'heart attack', 'acute mi', 'mi', 'acs', 'acute coronary syndrome']
+         ) and exist_in_sentence(
+            sentences, ['st elevation', 'ste']
+         ) and no_exist_in_sentence(
+            sentences, [" not ", " no ", " absen"]
+         )):
             return "stemi"
         elif exist_in_sentence(
-            sentences, ["nstemi", "no st elevation", "non-st elevation myocardial infarction", "non st elevation myocardial infarction"]
-        ):
+            sentences, ["nstemi", "non-st elevation myocardial infarction", "non st elevation myocardial infarction"]
+        ) or (exist_in_sentence(
+            sentences, ['myocardial infarction', 'heart attack', 'acute mi', 'mi', 'acs', 'acute coronary syndrome']
+         ) and exist_in_sentence(
+            sentences, ['non st elevation', 'no st elevation', 'no ste']
+         )):
             return "nstemi"
-        else:
+        elif exist_in_sentence(
+            sentences, ["not", "no",'no indication', 'no heart attack']
+        ) or (exist_in_sentence(
+            sentences, ["healthy", 'without disease']
+         ) and no_exist_in_sentence(
+            sentences, [" not ", " no "]
+         )):
             return "normal"
+        else:
+            return "no match"
 
     def calculate_reward(
         self,
@@ -568,41 +586,65 @@ class RewardModel_ACS:
             gt.append(gt_result)
 
         correct_bonus = [
-            1 if x == y else -0.5 if x == "no match" else 0
+            1 if x == y else -1 if x == "no match" else 0
             for x, y in zip(outcomes, gt)
         ]
 
         align_bonus = []
-        if outcomes[-1] in ["stemi", "nstemi", "normal"]:
-            if (outcomes[-1] == "stemi") and (outcomes[0] == True):
-                align_bonus.append(1)
-            elif (outcomes[-1] == "nstemi") and (outcomes[0] == False):
-                align_bonus.append(1)
+        # print(f'sentences length: {len(sentences)} and sentences content {sentences}')
+        # print(f'outcomes length: {len(outcomes)} and outcomes content {outcomes}')
+
+
+        if len(outcomes) > 0:
+            if outcomes[-1] in ["stemi", "nstemi", "normal"]:
+                if (outcomes[-1] == "stemi") and (outcomes[0] == True):
+                    align_bonus.append(1)
+                elif (outcomes[-1] == "nstemi") and (outcomes[0] == False):
+                    align_bonus.append(1)
+                else:
+                    align_bonus.append(0)
+
+                # for i in range(1, len(categories)):
+                #     res = [
+                #         [self.knowledge[key][categories[x] - 1] for x in [i - 1, i]]
+                #         for key in self.knowledge.keys()
+                #     ]
+                #     if outcomes[i - 1 : i + 1] in res:
+                #         align_bonus.append(1)
+                #     else:
+                #         align_bonus.append(0)
             else:
                 align_bonus.append(0)
-
-            # for i in range(1, len(categories)):
-            #     res = [
-            #         [self.knowledge[key][categories[x] - 1] for x in [i - 1, i]]
-            #         for key in self.knowledge.keys()
-            #     ]
-            #     if outcomes[i - 1 : i + 1] in res:
-            #         align_bonus.append(1)
-            #     else:
-            #         align_bonus.append(0)
         else:
             align_bonus.append(0)
+
+
+        model_answers = []
+        gt_answers = []
+        # sort the sentences and ref_answers by categories
+
+        for sentence, category in zip(sentences, categories):
+            # method = self._get_method(category, len(categories))
+            # if not method:
+            #     raise ValueError(f"No method found for category {category}")
+            model_answers.append(sentence)
+
+        for ref_answer, category in zip(ref_answers, categories):
+            gt_answers.append(ref_answer)
+
         # length_bonus is calculated if the length of the outcomes is the same as the length of the ref_answers has more than 10 letters difference
         length_bonus = [
-            (
-                -abs(len(x) - len(y)) / 10
-                if (abs(len(x) - len(y)) / 10) > 1
-                else 0
-            )
-            for x, y in zip(outcomes, gt)
+            max(-abs(len(x) - len(y)) / 25
+                if (abs(len(x) - len(y)) / 25) > 1
+                else 0, -0.5)
+            for x, y in zip(model_answers, gt_answers)
         ]
         # calculate the total bonus
-        bonus = sum(correct_bonus) + self.align_lambda*sum(align_bonus) + sum(length_bonus)
+        correct_bonus = torch.tensor(sum(correct_bonus)).to(device)
+        length_bonus = torch.tensor(sum(length_bonus)).to(device)
+        align_bonus = torch.tensor(sum(align_bonus)).to(device)
+        bonus = correct_bonus + self.align_lambda*align_bonus + length_bonus
+        bonus = bonus.unsqueeze(0).unsqueeze(1)
         return RewardModelOutput(rewards=bonus) if return_dict else (None,)
 
 
@@ -996,4 +1038,352 @@ class RewardModel_Custom:
         ]
 
         bonus = sum(correct_bonus) + sum(align_bonus) + sum(length_bonus)
+        return RewardModelOutput(rewards=bonus) if return_dict else (None,)
+
+class Rule_Based_Classifier:
+    def __init__(self):
+        pass
+
+    # write 5 function to check if each answer is cosistent with the question
+    # the 5 question cover 5 aspects
+    # Low quality detection; Image overall analysis; Pathology abnormality analysis;Detailed abnormality reasoning; Diagnosis
+    def max_sequential_overlap(self, list1):
+
+        list_of_lists = [[True, 'adequate', 'normal', 'no abnormality', 'normal'],
+                              [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
+                              [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
+                              [False, 'blood', 'inadequate','inadequate','inadequate'],
+                              [False, 'clot', 'inadequate','inadequate','inadequate']]
+        max_overlap = 0
+        list_length = len(list1)
+
+        for lst in list_of_lists:
+            for i in range(list_length):
+                # Check the overlap starting from each index of list1
+                overlap = 0
+                for j in range(i, list_length):
+                    if list1[j] == lst[j]:
+                        overlap += 1
+                    else:
+                        break
+                max_overlap = max(max_overlap, overlap)
+
+        return max_overlap
+
+    def _check_quality(self, sentences):
+        sentences = sentences.lower()  #This pathological image segment cannot be adequately utilized for accurate medical diagnosis
+        # True, mean it is the good quality
+        if exist_in_sentence(sentences, ['effective', 'appropriate', 'suit','apt ','optimal']) and no_exist_in_sentence(sentences, [' not ', ' no ', ' inadequate ',' unsuitable' ]):
+            return True
+        elif exist_in_sentence(sentences, ['cannot', 'not', 'no', 'inadequate','unsuitable']):
+            return False
+        else:
+            return  'no match'
+    
+    def _image_analysis(self, sentences):
+        sentences = sentences.lower() 
+        # there are three conditions: blood, clot and adequate
+        if exist_in_sentence(sentences, ['optimal', 'advantageous', 'suitable', 'adequate','well', 'prime']) and \
+           exist_in_sentence(sentences, ['close to', 'near', 'close', 'adjacent', 'proximity','vicinity','proximate']):
+            return 'adequate'
+        
+        elif exist_in_sentence(sentences, ['blood', 'rbc','rbcs']):
+            return 'blood'
+        
+        elif no_exist_in_sentence(sentences, ['close to', 'near', 'close', 'adjacent', 'proximity to','vicinity']) and \
+             exist_in_sentence(sentences, ['unsuit', 'hinder','less', 'negative', 'adverse']) and \
+                exist_in_sentence(sentences, ['particles']):
+            return 'clot'
+        else:
+            return  'no match'
+
+    def _pathology_analysis(self, sentences):
+        sentences = sentences.lower() 
+        # there are two conditions: normal and abnormal and inadequate
+        if exist_in_sentence(sentences, ['malig', 'cancer',' disorder']):
+            return 'abnormal'
+        elif exist_in_sentence(sentences, ['medical','illne']) and exist_in_sentence(sentences, ['display']):
+            return 'abnormal'
+        elif exist_in_sentence(sentences, [' normal ', ' normal', 'no abnormali']): 
+            return 'normal'
+        elif exist_in_sentence(sentences, ['inadequate', 'impossible', 'low-quality', 'low quality','unclear ','unsuitable','insufficient']):
+            return 'inadequate'
+        elif exist_in_sentence(sentences, ['quality']) and exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate','subpar']):
+            return 'inadequate'
+        else:
+            return  'no match'
+
+    def _detailed_abnormality_reasoning(self, sentences):
+        sentences = sentences.lower() 
+        if exist_in_sentence(sentences, ['plasma','plasma']):
+            return 'plasma cells'
+        elif exist_in_sentence(sentences, ['myeloblast', 'myeloblast']):
+            return 'myeloblasts'
+        elif exist_in_sentence(sentences, ['quality']) and (exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate', 'insufficient']) or \
+                                                            exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent'])):
+            return 'inadequate'
+        elif exist_in_sentence(sentences, ['quality']) and (exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate', 'insufficient']) or \
+                                                            exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent'])):
+            return 'inadequate'
+        elif exist_in_sentence(sentences, ['no ', 'not', 'devoid', 'free', 'absent' ,'absence']):
+            return 'no abnormality'
+        else:
+            return  'no match'
+
+    def _diagnosis(self, sentences):
+        sentences = sentences.lower() 
+        if (exist_in_sentence(sentences, ['blood cancer','cancer']) and \
+                exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent', 'absence']) and \
+                   no_exist_in_sentence(sentences, [' quality'])) or exist_in_sentence(sentences, [' healthy', 'normal']):
+            return 'normal'
+
+        elif exist_in_sentence(sentences, 'quality') and (exist_in_sentence(sentences, ['low', 'poor', 'insuffici', 'inadequate', 'insufficient']) or \
+                                                            exist_in_sentence(sentences, ['not', 'no ', 'devoid', 'free', 'absent'])):
+            return 'inadequate'
+        elif exist_in_sentence(sentences, ['multiple myeloma', 'multiple myeloma', 'mm']):
+            return 'MM'
+        elif exist_in_sentence(sentences, ['acute myeloid leukemia', 'acute myeloid leukemia', 'aml']):
+            return 'AML'
+        elif exist_in_sentence(sentences, ['blood cancer',]):
+            return 'cancer'
+        else:
+            return  'no match'
+
+
+        
+            
+
+    
+    def _forward(self, sentences, batch_size_confirmation, return_dict=True, device =None, ref_answer=None):
+        
+        Pred_sentence = sentences
+        Ref_sentence  = ref_answer
+        if int(len(sentences)/5) == batch_size_confirmation:
+            objects = ['>'.join(sentences[5*x:5*x+5]) for x in range(batch_size_confirmation)]
+        elif  int(len(sentences[0].split('. '))/5) == batch_size_confirmation:
+            sentences =  [(_a_sentence +'.').replace('..','.') for _a_sentence in sentences[0].split('. ')]
+            assert int(len(sentences)/5) == batch_size_confirmation, 'something is off'
+            objects = ['>'.join(sentences[5*x:5*x+5]) for x in range(batch_size_confirmation)]
+        else:
+            assert False, 'something is off'
+
+        # split into 5 sentences
+        if ">" in sentences:
+            sentences = objects.split('>')
+        
+        assert len(sentences) == 5, 'the input is not 5 sentences'
+
+        weak_correct_bonus = []
+        
+
+        strong_correct_bonus = []
+        pred_records = []
+        ref_records = []
+
+        weak_alignment_bonus = []
+        strong_alignment_bonus = []
+
+        length_bonus = []
+        
+
+        for _index, (pred, groundtruth) in enumerate(zip(sentences, ref_answer)):
+            length_diff=-abs(int((len(pred) - len(groundtruth))/80))
+            length_bonus.append(length_diff)
+            groundtruth_answer = groundtruth
+            # check if the answer is consistent with the question
+            # use case statement 
+            # Low quality detection; Image overall analysis; Pathology abnormality analysis;Detailed abnormality reasoning; Diagnosis
+            if _index == 0:
+                
+                pred = self._check_quality(pred)
+                groundtruth = self._check_quality(groundtruth)
+                pred_records.append(pred)
+                ref_records.append(groundtruth)
+
+                if pred == groundtruth:
+                    weak_correct_bonus.append(1)
+                    strong_correct_bonus.append(1)
+                elif pred =='no match':
+                    weak_correct_bonus.append(-0.5)
+                    strong_correct_bonus.append(-0.5)
+                elif groundtruth == 'no match':
+                    assert False, 'gt sentence: {groundtruth_answer}'
+                else:
+                    weak_correct_bonus.append(0)
+                    strong_correct_bonus.append(0)
+                
+                
+            elif _index == 1:
+                pred = self._image_analysis(pred)
+                groundtruth = self._image_analysis(groundtruth)
+                pred_records.append(pred)
+                ref_records.append(groundtruth)
+
+                if pred == groundtruth:
+                    strong_correct_bonus.append(1)
+                    weak_correct_bonus.append(1)
+                elif pred == 'no match':
+                    weak_correct_bonus.append(-0.5)
+                    strong_correct_bonus.append(-0.5)
+                elif (pred == 'adequate') and (groundtruth in ['blood', 'clot']):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['blood', 'clot']) and (groundtruth == 'adequate'):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['blood', 'clot']) and (groundtruth in ['blood','clot']):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0.5)
+                else:
+                    assert False, f'A condition is not considered. pred: {pred}, groundtruth: {groundtruth} gt sentence: {groundtruth_answer}'
+            elif _index == 2:
+                pred = self._pathology_analysis(pred)
+                groundtruth = self._pathology_analysis(groundtruth)
+                pred_records.append(pred)
+                ref_records.append(groundtruth)
+
+                if pred == groundtruth:
+                    strong_correct_bonus.append(1)
+                    weak_correct_bonus.append(1)
+                elif pred == 'no match':
+                    weak_correct_bonus.append(-0.5)
+                    strong_correct_bonus.append(-0.5)
+                elif (pred == 'inadequate') and (groundtruth in ['normal', 'abnormal']):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['normal', 'abnormal']) and (groundtruth == 'inadequate'):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['normal', 'abnormal']) and (groundtruth in ['normal','abnormal']):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0.5)
+                else:
+                    assert False, f'A condition is not considered. pred: {pred}, groundtruth: {groundtruth} gt sentence: {groundtruth_answer}'
+
+            elif _index == 3:
+                pred = self._detailed_abnormality_reasoning(pred)
+                groundtruth = self._detailed_abnormality_reasoning(groundtruth)
+                pred_records.append(pred)
+                ref_records.append(groundtruth)
+
+                if pred == groundtruth:
+                    strong_correct_bonus.append(1)
+                    weak_correct_bonus.append(1)
+                elif pred == 'no match':
+                    weak_correct_bonus.append(-0.5)
+                    strong_correct_bonus.append(-0.5)
+                elif (pred == 'inadequate') and (groundtruth in ['plasma cells', 'myeloblasts', 'no abnormality']):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['plasma cells', 'myeloblasts']) and (groundtruth == 'inadequate'):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['plasma cells', 'myeloblasts']) and (groundtruth in ['no abnormality']):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['no abnormality',]) and (groundtruth in ['inadequate']):
+                    strong_correct_bonus.append(0.5)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['no abnormality', ]) and (groundtruth in ['plasma cells', 'myeloblasts']):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0)
+                elif (pred in ['plasma cells', 'myeloblasts',]) and (groundtruth in ['plasma cells', 'myeloblasts',]):
+                    strong_correct_bonus.append(0)
+                    weak_correct_bonus.append(0.5)
+                else:
+                    assert False, f'A condition is not considered. pred: {pred}, groundtruth: {groundtruth} gt sentence: {groundtruth_answer}'
+
+            elif _index == 4:
+                pred = self._diagnosis(pred)
+                groundtruth = self._diagnosis(groundtruth)
+                pred_records.append(pred)
+                ref_records.append(groundtruth)
+
+                if pred == groundtruth:
+                    strong_correct_bonus.append(1)
+                    weak_correct_bonus.append(1)
+                elif pred=='cancer' and groundtruth in ['MM', 'AML']:
+                    weak_correct_bonus.append(0.5)
+                    strong_correct_bonus.append(0.5)
+
+                elif pred == 'no match':
+                    weak_correct_bonus.append(-0.5)
+                    strong_correct_bonus.append(-0.5)
+                else:
+                    weak_correct_bonus.append(0)
+                    strong_correct_bonus.append(0)
+
+
+            else:
+                assert False, 'A condition is not considered'
+
+            # check the index of 0
+            # check the index of 1
+            
+
+            # give a binary list, if the list appear 0, then the reward for that index is 0
+            # if the list appear 1, then the reward for that index is the number of 1 before that index until 0 and itself
+            # for example, [0,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1] -> [0,1,2,0,1,2,3,0,0,1,2,3,4,5,6,7]
+            # this is the weak alignment bonus
+
+        
+        assert len(weak_correct_bonus) == len(strong_correct_bonus)==5, 'something is off'
+        assert len(pred_records) == len(ref_records)==5, 'something is off'
+        print(f'pred_sentence: :{Pred_sentence}')
+        print(f'ref_sentences: {ref_answer}')
+        print(pred_records)
+        print(ref_records)
+        
+        assert ref_records in [[True, 'adequate', 'normal', 'no abnormality', 'normal'],
+                              [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
+                              [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
+                              [False, 'blood', 'inadequate','inadequate','inadequate'],
+                              [False, 'clot', 'inadequate','inadequate','inadequate']], print(f'something is off! the ref_records is {ref_records}')
+
+        if pred_records == ref_records:
+            # 100% right!
+            #assert sum(strong_correct_bonus) == sum(weak_correct_bonus) ==5, 'something is off'
+            strong_correct_bonus = [x*5 for x in strong_correct_bonus]
+            weak_correct_bonus = [x*5 for x in weak_correct_bonus]
+        elif pred_records in [[True, 'adequate', 'normal', 'no abnormality', 'normal'],
+                              [True, 'adequate', 'abnormal', 'myeloblasts', 'AML'],
+                              [True, 'adequate', 'abnormal', 'plasma cells', 'MM'],
+                              [False, 'blood', 'inadequate','inadequate','inadequate'],
+                              [False, 'clot', 'inadequate','inadequate','inadequate'],
+                              [False, 'clot', 'inadequate','no abnormality','inadequate'],
+                               [False, 'blood', 'inadequate','no abnormality','inadequate']]:
+            strong_correct_bonus = [x*4 for x in strong_correct_bonus]
+            weak_correct_bonus = [x*4 for x in weak_correct_bonus]
+
+        elif self.max_sequential_overlap(pred_records) ==4:
+            strong_correct_bonus = [x*3 for x in strong_correct_bonus]
+            weak_correct_bonus = [x*3 for x in weak_correct_bonus]
+        
+        elif self.max_sequential_overlap(pred_records) ==3:
+            strong_correct_bonus = [x*2 for x in strong_correct_bonus]
+            weak_correct_bonus = [x*2 for x in weak_correct_bonus]
+
+        
+        elif self.max_sequential_overlap(pred_records) ==2:
+            strong_correct_bonus = [x*1.5 for x in strong_correct_bonus]
+            weak_correct_bonus = [x*1.5 for x in weak_correct_bonus]
+
+
+        # create a dataframe
+        
+        df = pd.DataFrame({
+            'pred_category':pred_records,
+                          'ref_category':ref_records,
+                          'strong_correct_bonus':strong_correct_bonus,
+                          })
+        print(df)
+        #weak_correct_bonus = torch.tensor(np.array(weak_correct_bonus)).to(device)
+        strong_correct_bonus = torch.tensor(np.array(strong_correct_bonus)).to(device)
+        length_bonus = torch.tensor(np.array(length_bonus)).to(device)
+        bonus = strong_correct_bonus +length_bonus
+        if True: # Zhiqing believes that summing is WRONG!!!
+            bonus = sum(bonus)/5
+            bonus = bonus.unsqueeze(0).unsqueeze(1)
+        else:
+            bonus = bonus.unsqueeze(1)
         return RewardModelOutput(rewards=bonus) if return_dict else (None,)
