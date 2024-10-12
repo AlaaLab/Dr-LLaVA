@@ -586,9 +586,18 @@ class RewardModel_ACS:
             gt.append(gt_result)
 
         correct_bonus = [
-            1 if x == y else -1 if x == "no match" else 0
+            2 if x == y else -1.5 if x == "no match" else -0.5
             for x, y in zip(outcomes, gt)
         ]
+
+        diagnosis_bonus = 0
+        if gt[-1] in ["stemi", "nstemi"]:
+            if outcomes[-1] == gt[-1]:
+                diagnosis_bonus += 8
+            else:
+                diagnosis_bonus -= 2
+
+        correct_bonus[-1] = correct_bonus[-1] + diagnosis_bonus
 
         align_bonus = []
         # print(f'sentences length: {len(sentences)} and sentences content {sentences}')
@@ -598,9 +607,9 @@ class RewardModel_ACS:
         if len(outcomes) > 0:
             if outcomes[-1] in ["stemi", "nstemi", "normal"]:
                 if (outcomes[-1] == "stemi") and (outcomes[0] == True):
-                    align_bonus.append(1)
+                    align_bonus.append(10)
                 elif (outcomes[-1] == "nstemi") and (outcomes[0] == False):
-                    align_bonus.append(1)
+                    align_bonus.append(10)
                 else:
                     align_bonus.append(0)
 
