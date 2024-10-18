@@ -70,17 +70,17 @@ class QueryResponseDataset(Dataset):
             assert __s[-1]["from"] == "gpt", f"{__s}"
             if len(__s) == 8:
                 __s[0]["value"] = __s[0]["value"].split(". ")[-1]
-                __a.append(__s[1]["value"] + "order 1")
-                __s[1]["value"] = "order 1\n"
+                __a.append(__s[1]["value"] + "spot_in_sequence 1")
+                __s[1]["value"] = "spot_in_sequence 1\n"
                 __s[2]["value"] = __s[2]["value"].split(". ")[-1]
-                __a.append(__s[3]["value"] + "order 2")
-                __s[3]["value"] = "order 2\n"
+                __a.append(__s[3]["value"] + "spot_in_sequence 2")
+                __s[3]["value"] = "spot_in_sequence 2\n"
                 __s[4]["value"] = __s[4]["value"].split(". ")[-1]
-                __a.append(__s[5]["value"] + "order 3")
-                __s[5]["value"] = "order 3\n"
+                __a.append(__s[5]["value"] + "spot_in_sequence 3")
+                __s[5]["value"] = "spot_in_sequence 3\n"
                 __s[6]["value"] = __s[6]["value"].split(". ")[-1]
-                __a.append(__s[7]["value"] + "order 4")
-                __s[7]["value"] = "order 4\n"
+                __a.append(__s[7]["value"] + "spot_in_sequence 4")
+                __s[7]["value"] = "spot_in_sequence 4\n"
                 # __s[8]["value"] = __s[8]["value"].split(". ")[-1]
                 # __a.append(__s[9]["value"] + "order 5")
                 # __s[9]["value"] = "order 5\n"
@@ -98,7 +98,7 @@ class QueryResponseDataset(Dataset):
                         "<image>\n", ""
                     )
                 # Shuffle the QA pairs
-                random.shuffle(qa_pairs)
+                #random.shuffle(qa_pairs)
                 # Flatten the list back to the original format
                 permuted_list = [item for pair in qa_pairs for item in pair]
                 permuted_list[0]["value"] = "<image>\n" + permuted_list[0]["value"]

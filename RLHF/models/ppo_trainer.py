@@ -64,6 +64,23 @@ from models.rl_trainer import (
 )
 from models.rl_models import get_prompt_image_first_question as get_first_response
 
+import torch
+import torch.nn as nn
+
+class DummyRewardModel(nn.Module):
+    def __init__(self):
+        super(DummyRewardModel, self).__init__()
+        # Minimal layers or attributes if needed
+        self.config = {'dummy_config': True}  # If your code accesses self.reward_model.config
+
+    def forward(self, *args, **kwargs):
+        # Return dummy outputs that mimic the expected output
+        # For example, if the reward model returns a scalar per input in the batch
+        batch_size = args[0].size(0)  # Assuming the first arg is input_ids
+        device = args[0].device
+        # Return a tensor of rewards (e.g., zeros)
+        return torch.zeros(batch_size, 1).to(device)
+
 AnyPath = Union[str, os.PathLike, pathlib.Path]
 AnyPathOrNone = Optional[AnyPath]
 
@@ -113,6 +130,8 @@ class PPOTrainer(RLTrainer):
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
         )
+
+        #self.reward_model = DummyRewardModel() #HACK
 
     def _shape_reward(
         self,
@@ -209,6 +228,7 @@ class PPOTrainer(RLTrainer):
 
         self.ref_policy.eval()
         self.reward_model.eval()
+        
 
         rollouts = []
         for batch_idx, batch in tqdm.tqdm(
@@ -245,6 +265,15 @@ class PPOTrainer(RLTrainer):
                 ),
             )
 
+            # print(f'answer type {type(answers)}')
+            # print(f'diagnosis type {type(diagnosis)}')
+
+            # print(f'query shape {queries.shape}')
+            # print(f'answers length {len(answers)}')
+
+
+            # print(f'Query Examples {queries[0][0]}')
+
             if self.args.bf16:
                 images = images.to(torch.bfloat16)
                 reward_images = reward_images.to(torch.bfloat16)
@@ -270,6 +299,9 @@ class PPOTrainer(RLTrainer):
 
             additional_token2 = self.tokenizer.encode("\n?")[-1]
             assert additional_token2 == 29973
+
+            # print(f'queries shape {queries.shape}')
+            # print(f'responses shape {responses.shape}')
 
             text_responses = self.tokenizer.batch_decode(
                 responses,
@@ -392,30 +424,92 @@ class PPOTrainer(RLTrainer):
                 for sub_batch_idx in range(batch_size_per_device):
                     _answer = answers[sub_batch_idx : sub_batch_idx + 1][0]
 
-                    ###
-                    _order = [int(x.split("order ")[1]) for x in _answer]
-                    trimed_answer = [x.split("order ")[0] for x in _answer]
-
-                    sorted_answer = trimed_answer[:num_QA]
                     prediction = []
-                    prediction.append(text_responses[sub_batch_idx].split("USER: ")[0])
+                    prediction.append(text_responses[sub_batch_idx].split("USER:")[0])
 
+                    error = 0
                     for i in range(1, num_QA):
-                        prediction.append(
-                            text_responses[sub_batch_idx]
-                            .split("USER: ")[i]
-                            .split("ASSISTANT:")[-1]
-                        )
+                        try:
+                            prediction.append(
+                                text_responses[sub_batch_idx]
+                                .split("USER:")[i]
+                                .split("ASSISTANT:")[-1]
+                            )
+                        except Exception as e:
+                            prediction.append('garbage')
+                            error = 1
+                            #print('bad sequence')
+                            #print(f"An error occurred: {e} || Index {i} || text_responses sub_batch_idx was {text_responses[sub_batch_idx]}")
+                             
+                            
+                    # if error == 0:
+                    #     print('GOOD sequence')
+                        #print(f"GOOD Sequence \n See predictions {prediction}")
+                    error = 0
+                            
+                        # prediction.append(
+                        #     text_responses[sub_batch_idx]
+                        #     .split("USER:")[i]
+                        #     .split("ASSISTANT:")[-1]
+                        # )
+
+                    _order = [int(x.split("spot_in_sequence ")[1]) for x in _answer]
+
+                    
+                    # sub_batch_reward_outputs = symbolic_rm._forward(
+                    #         sentences = prediction, batch_size_confirmation = 1, 
+                    #         return_dict=True, device = device_of_a,ref_answer = _answer,  
+                    #     )
+                    
+                    # prediction = text_responses[sub_batch_idx].split('.')[:-1]
+                    # prediction = [x.split('ASSISTANT: ')[-1] for x in prediction]
 
                     sub_batch_reward_outputs = symbolic_rm.calculate_reward(
-                        sentences=prediction,
-                        return_dict=True,
-                        device=device_of_a,
-                        ref_answers=sorted_answer,
-                        categories=_order,
-                    )
+                            sentences = prediction, return_dict=True, device = device_of_a, 
+                            ref_answers = _answer, categories=_order  
+                        )
 
+                    
                     symbolic_reward_outputs_list.append(sub_batch_reward_outputs)
+
+                    ###
+                    # print(_answer)
+                    # _order = [int(x.split("spot_in_sequence ")[1]) for x in _answer]
+                    # trimed_answer = [x.split("spot_in_sequence ")[0] for x in _answer]
+                    # print(f'_trimmed_answer {trimed_answer}')
+                    # print(f'_order {_order}')
+
+                    # sorted_answer = trimed_answer[:num_QA]
+                    # prediction = []
+                    # prediction.append(text_responses[sub_batch_idx].split("USER: ")[0])
+
+                    # first_pred = text_responses[sub_batch_idx].split("USER: ")[0]
+                    
+                    
+                    # print(num_QA)
+                    #print(f'Example text response subbatch check it: HERE \n {text_responses[sub_batch_idx]} \n')
+                    # print(f'Answer string: LOOK \n {_answer}')
+                    # print(f'Question order: LOOK \n {_order}')
+                    
+                    #print(f'Overall text response object: SEE \n {text_responses}')
+
+                    # for i in range(1, num_QA):
+                    #     print(i)
+                    #     prediction.append(
+                    #         text_responses[sub_batch_idx]
+                    #         .split("USER: ")[i]
+                    #         .split("ASSISTANT:")[-1]
+                    #     )
+
+                    # sub_batch_reward_outputs = symbolic_rm.calculate_reward(
+                    #     sentences=prediction,
+                    #     return_dict=True,
+                    #     device=device_of_a,
+                    #     ref_answers=sorted_answer,
+                    #     categories=_order,
+                    # )
+
+                    # symbolic_reward_outputs_list.append(sub_batch_reward_outputs)
 
                 reward_outputs = common_utils.merge_dict(
                     symbolic_reward_outputs_list, merge_fn=torch.cat
@@ -423,6 +517,9 @@ class PPOTrainer(RLTrainer):
                 del symbolic_reward_outputs_list
                 del sub_batch_reward_outputs
 
+            # print(f'last text response: {text_responses[sub_batch_idx]}')
+            print(f"Rewards {reward_outputs['rewards'].mean()}")
+            
             has_stop_token = [
                 self.tokenizer.eos_token_id in response
                 for response in responses.tolist()
@@ -454,6 +551,11 @@ class PPOTrainer(RLTrainer):
                 key: value.cpu() for key, value in rollouts_batch.items()
             }
             rollouts.append(rollouts_batch_cpu)
+
+        # for key in rollouts[0].keys():
+        #     for dict_ in rollouts:
+        #         print(f'shape of tensors corresponding to {key}')
+        #         print(dict_[key].size())
 
         # Items in dict need to be of same shape.
         rollouts = common_utils.merge_dict(rollouts, merge_fn=torch.cat)
@@ -582,6 +684,8 @@ class PPOTrainer(RLTrainer):
             (pg_losses2 > pg_losses).to(torch.get_default_dtype()).mean()
         )  # noqa
 
+        dummy = outputs["dummy_loss"]
+        # print(f'pg_loss {pg_loss}, dummy loss {dummy}')
         loss = pg_loss + outputs["dummy_loss"]
 
         entropy = outputs["entropies"].mean()
@@ -655,9 +759,12 @@ class PPOTrainer(RLTrainer):
         vf_losses1 = (vpred - returns) ** 2.0
         vf_losses2 = (vpredclipped - returns) ** 2.0
         vf_loss = 0.5 * torch.maximum(vf_losses1, vf_losses2).mean()
+        # print(f'vf_losses1 {vf_losses1}, vf_losses2 {vf_losses2}, vf_loss {vf_loss}')
         vf_clipfrac = (vf_losses2 > vf_losses1).to(torch.get_default_dtype()).mean()
 
         loss = self.args.vf_coef * vf_loss + outputs["dummy_loss"]
+
+        # print(f'value_loss {loss}')
 
         value_mean, value_var = values.mean(), values.var(unbiased=False)
 

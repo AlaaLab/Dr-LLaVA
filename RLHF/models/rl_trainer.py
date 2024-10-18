@@ -203,8 +203,14 @@ class RLTrainer(object):
             "`optimizer` must be pushed through `accelerator.prepare`. "
             "Otherwise the `accelerator.accumulate` context manager won't correctly disable `zero_grad` or `step`."
         )
+        # for key in rollouts.keys():
+        #     #for dict_ in rollouts:
+        #     print(f'shape of tensors corresponding to {key}')
+        #     print(rollouts[key].size())
+        
         rollouts_dataloader = self.get_rollouts_dataloader(rollouts=rollouts)
         stats_list = []
+        print(f'len(rollouts_dataloader) {len(rollouts_dataloader)}')
         for epoch_idx in range(self.args.noptepochs):
             for batch_idx, rollouts_batch in tqdm.tqdm(
                 enumerate(rollouts_dataloader, 1),
@@ -214,17 +220,21 @@ class RLTrainer(object):
             ):
                 gc.collect()
                 torch.cuda.empty_cache()
+                # print('HELLO I AM IN GRAD STEP')
                 with self.accelerator.accumulate(self.policy):
+                    # print('STEPPING')
                     stats_for_this_step = {}
                     with self.accelerator.no_sync(self.policy):
                         policy_loss, policy_stats = self.compute_policy_loss(
                             rollouts_batch
                         )
                         stats_for_this_step.update(policy_stats)
+                        # print(f'policy loss: {policy_loss}')
                         self.accelerator.backward(policy_loss)
 
                     value_loss, value_stats = self.compute_value_loss(rollouts_batch)
                     stats_for_this_step.update(value_stats)
+                    # print(f'value loss: {value_loss}')
                     self.accelerator.backward(value_loss)
 
                     if self.accelerator.sync_gradients:
@@ -249,6 +259,14 @@ class RLTrainer(object):
             next(train_dataloader) for _ in range(self.args.rollout_accumulation_steps)
         ]
         rollouts = self.rollout(queries_batches)
+        # for key in rollouts.keys():
+        #     #for dict_ in rollouts:
+        #     print(f'shape of tensors corresponding to {key}')
+        #     print(rollouts[key].size())
+            
+        # length = rollouts['rewards'].size()
+        # print(f'rollouts reward size {length}')
+        # print(f'rollouts printout{rollouts}')
         train_stats = self.step_with_rollouts(rollouts)
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
@@ -371,7 +389,7 @@ class RLTrainer(object):
         return utils.InfiniteLoader(train_dataloader)
 
     def get_rollouts_dataloader(
-        self, rollouts: Dict[str, torch.Tensor], shuffle=True, drop_last=True, keys=None
+        self, rollouts: Dict[str, torch.Tensor], shuffle=True, drop_last=False, keys=None
     ):
         if keys is None:
             keys = tuple(rollouts.keys())
@@ -383,9 +401,10 @@ class RLTrainer(object):
             }
 
         rollouts_dataset = TensorDataset(*[rollouts[key] for key in keys])
+        # print(f'len(rollouts_dataset) {len(rollouts_dataset)}')
         rollouts_dataloader = DataLoader(
             dataset=rollouts_dataset,
-            batch_size=self.args.step_per_device_batch_size * 5,
+            batch_size=self.args.step_per_device_batch_size, #* 5,
             collate_fn=collate_rollouts,
             shuffle=shuffle,
             drop_last=drop_last,
