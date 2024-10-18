@@ -47,17 +47,18 @@ def eval_model(args):
     # Model
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
-    model_name = get_model_name_from_path(model_path)
+    model_name = model_path
     compute_dtype = torch.float16
 
     tokenizer, model, image_processor, context_len = load_pretrained_model(
         model_path, args.model_base, model_name
     )
+    model = torch.compile(model)
 
-    if lora_path is not None:
-        self.model = PeftModel.from_pretrained(
-            self.model,
-            lora_path,
+    if args.lora_path is not None:
+        model = PeftModel.from_pretrained(
+            model,
+            args.lora_path,
         )
 
 
@@ -135,14 +136,14 @@ def eval_model(args):
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids=input_ids,
-                images=image_tensor.unsqueeze(0).to(dtype=compute_dtype).cuda(),
+                images=image_tensor.unsqueeze(0).to(dtype=compute_dtype, device='cuda'),
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature if args.temperature > 0 else 1.0,
                 top_p=args.top_p,
                 num_beams=args.num_beams,
                 # no_repeat_ngram_size=3,
                 max_new_tokens=64 if args.short_eval else 1024,
-                stopping_criteria=[stopping_criteria],
+                # stopping_criteria=[stopping_criteria],
                 use_cache=True,
             )
 
@@ -167,7 +168,7 @@ def eval_model(args):
             json.dumps(
                 {
                     "question_id": idx,
-                    "prompt": cur_prompt,
+                    "prompt": qs,
                     "text": outputs,
                     "answer_id": ans_id,
                     "model_id": model_name,
@@ -182,11 +183,11 @@ def eval_model(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v0")
-    parser.add_argument("--model-base", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RLHF-7b-v1.5-224/sft_model")
+    parser.add_argument("--model-path", type=str, default="../checkpoints/llavamed-sft-ecg")
+    parser.add_argument("--model-base", type=str, default=None)
     parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder")
     parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/eval_single_qa.json")
-    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/single_qa_answer.jsonl")
+    parser.add_argument("--answers-file", type=str, default="./table/answer/llava-med_single_answer.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
@@ -194,13 +195,9 @@ if __name__ == "__main__":
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--lora-path", type=str, default=None)
-    parser.add_argument("--short_eval", type=bool, default=False)
+    parser.add_argument("--short_eval", type=bool, default=True)
     parser.add_argument("--image_aspect_ratio", type=str, default="pad")
-    parser.add_argument(
-        "--test-prompt",
-        type=str,
-        default="\nAnswer the question using a single word or phrase.",
-    )
+    parser.add_argument("--test-prompt", type=str, default=None)
     args, unknown = parser.parse_known_args()
 
     if os.path.exists(args.answers_file):

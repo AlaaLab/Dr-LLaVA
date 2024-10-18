@@ -47,7 +47,7 @@ def eval_model(args):
     # Model
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
-    model_name = get_model_name_from_path(model_path)
+    model_name = model_path #get_model_name_from_path(model_path)
     compute_dtype = torch.float16
 
     tokenizer, model, image_processor, context_len = load_pretrained_model(
@@ -78,8 +78,8 @@ def eval_model(args):
     for line_chunks in tqdm(questions):
         assert len(line_chunks)==4, 'this number should be 4'
         conv = conv_templates[args.conv_mode].copy()
-        p = 0
-        for line in line_chunks:
+
+        for p, line in enumerate(line_chunks):
             idx = line["question_id"]
             image_file = line["image"]
             # image_file = 'COCO_val2014_' + image_file
@@ -113,7 +113,7 @@ def eval_model(args):
                     .cuda()
                 )
 
-            if p ==0:
+            if p == 0:
                 image = Image.open(os.path.join(args.image_folder, image_file))
                 if args.image_aspect_ratio == "pad":
                     image = image.convert("RGB")
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-base", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RLHF-7b-v1.5-224/sft_model")
     parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder")
     parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/eval.json")
-    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/new_rlhf_conversation.jsonl")
+    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/rlhf-v5-ckpt-50_conversation.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
@@ -212,11 +212,7 @@ if __name__ == "__main__":
     parser.add_argument("--lora-path", type=str, default=None)
     parser.add_argument("--short_eval", type=bool, default=False)
     parser.add_argument("--image_aspect_ratio", type=str, default="pad")
-    parser.add_argument(
-        "--test-prompt",
-        type=str,
-        default="\nAnswer the question using a single word or phrase.",
-    )
+    parser.add_argument("--test-prompt", type=str, default=None)
     args = parser.parse_args()
 
     if os.path.exists(args.answers_file):

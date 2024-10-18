@@ -1,9 +1,7 @@
 import argparse
 import json
 import os
-import numpy as np
-from collections import Counter
-from sklearn.metrics import precision_recall_fscore_support as score, accuracy_score
+from sklearn.metrics import accuracy_score
 
 def exist_in_sentence(sentence, keywords):
     # check if keywords exist in the sentence
@@ -117,79 +115,32 @@ def get_args():
     parser.add_argument('--options', type=list, default=["Yes", "No"])
     return parser.parse_args()
 
-
-
 if __name__ == "__main__":
     args = get_args()
 
     base_dir = args.base_dir
-    problems = json.load(open(os.path.join(base_dir, "test_conversations.json")))
+    problems = json.load(open(os.path.join(base_dir, "test_conversations_single_qa.json")))
     predictions = [json.loads(line) for line in open(args.result_file)]
+    predictions = {pred['question_id']: pred for pred in predictions}
 
     y_pred = []
     y_true = []
 
-    for i, prob in enumerate(problems):
-        preds = predictions[i*4:(i+1)*4]
-        convs = prob['conversations']
+    for idx, prob in enumerate(problems):
+        pred = predictions[prob['id']]
+        pid = idx % 4
 
-        y_pred.append([
-            rm._check_st_elevation(preds[0]['text']),
-            rm._check_st_depression_or_t_wave(preds[1]['text']),
-            rm._ordering_troponin_test(preds[2]['text']),
-            rm._diagnosis(preds[3]['text']),
-        ])
+        if pid == 0:
+            y_pred.append(rm._check_st_elevation(pred['text']))
+            y_true.append(rm._check_st_elevation(prob['conversations'][1]['value']))
+        if pid == 1:
+            y_pred.append(rm._check_st_depression_or_t_wave(pred['text']))
+            y_true.append(rm._check_st_depression_or_t_wave(prob['conversations'][1]['value']))
+        if pid == 2:
+            y_pred.append(rm._ordering_troponin_test(pred['text']))
+            y_true.append(rm._ordering_troponin_test(prob['conversations'][1]['value']))
+        if pid == 3:
+            y_pred.append(rm._diagnosis(pred['text']))
+            y_true.append(rm._diagnosis(prob['conversations'][1]['value']))
 
-        # pred_diagnose = 'normal'
-        # if preds[3]['text'] == 'Yes':
-        #     if rm._check_st_elevation(preds[0]['text']):
-        #         pred_diagnose = 'stemi'
-        #     else:
-        #         pred_diagnose = 'nstemi'
-        # y_pred[-1][-1] = pred_diagnose
-
-        y_true.append([
-            rm._check_st_elevation(convs[1]['value']),
-            rm._check_st_depression_or_t_wave(convs[3]['value']),
-            rm._ordering_troponin_test(convs[5]['value']),
-            rm._diagnosis(convs[7]['value']),
-        ])
-
-    y_pred = np.array(y_pred)
-    y_true = np.array(y_true)
-
-    for i in range(4):
-        print('---')
-        print(f'Q_{i+1}')
-
-        precision, recall, fscore, support = score(y_true[:,i], y_pred[:,i], average='macro')
-
-        print('accuracy: {}'.format(accuracy_score(y_true[:,i], y_pred[:,i])))
-        print('precision: {}'.format(precision))
-        print('recall: {}'.format(recall))
-        print('f1-score: {}'.format(fscore))
-
-        x = Counter(y_pred[:,i].tolist())
-        print(x)
-
-
-    print('---')
-    print('A_Q')
-
-    precision, recall, fscore, support = score(y_true.flatten(), y_pred.flatten(), average='macro')
-    print('accuracy: {}'.format(accuracy_score(y_true.flatten(), y_pred.flatten())))
-    print('precision: {}'.format(precision))
-    print('recall: {}'.format(recall))
-    print('f1-score: {}'.format(fscore))
-
-    print('---')
-    print('A_C')
-
-    y_true = [ ''.join(y.tolist()) for y in y_true ]
-    y_pred = [ ''.join(y.tolist()) for y in y_pred ]
-
-    precision, recall, fscore, support = score(y_true, y_pred, average='macro')
     print('accuracy: {}'.format(accuracy_score(y_true, y_pred)))
-    print('precision: {}'.format(precision))
-    print('recall: {}'.format(recall))
-    print('f1-score: {}'.format(fscore))
