@@ -47,20 +47,18 @@ def eval_model(args):
     # Model
     disable_torch_init()
     model_path = os.path.expanduser(args.model_path)
-    model_name = model_path
+    model_name = model_path #get_model_name_from_path(model_path)
     compute_dtype = torch.float16
 
     tokenizer, model, image_processor, context_len = load_pretrained_model(
         model_path, args.model_base, model_name
     )
-    model = torch.compile(model)
 
     if args.lora_path is not None:
         model = PeftModel.from_pretrained(
             model,
             args.lora_path,
         )
-
 
     questions = [
         json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")
@@ -136,14 +134,14 @@ def eval_model(args):
         with torch.inference_mode():
             output_ids = model.generate(
                 input_ids=input_ids,
-                images=image_tensor.unsqueeze(0).to(dtype=compute_dtype, device='cuda'),
+                images=image_tensor.unsqueeze(0).to(dtype=compute_dtype).cuda(),
                 do_sample=True if args.temperature > 0 else False,
                 temperature=args.temperature if args.temperature > 0 else 1.0,
                 top_p=args.top_p,
                 num_beams=args.num_beams,
                 # no_repeat_ngram_size=3,
                 max_new_tokens=64 if args.short_eval else 1024,
-                # stopping_criteria=[stopping_criteria],
+                stopping_criteria=[stopping_criteria],
                 use_cache=True,
             )
 
@@ -159,16 +157,14 @@ def eval_model(args):
             output_ids[:, input_token_len:], skip_special_tokens=True
         )[0]
         outputs = outputs.strip()
-        if outputs.endswith(stop_str):
-            outputs = outputs[: -len(stop_str)]
-        outputs = outputs.strip()
+        conv.messages[-1][-1] = outputs
 
         ans_id = shortuuid.uuid()
         ans_file.write(
             json.dumps(
                 {
                     "question_id": idx,
-                    "prompt": qs,
+                    "prompt": cur_prompt,
                     "text": outputs,
                     "answer_id": ans_id,
                     "model_id": model_name,
@@ -183,11 +179,11 @@ def eval_model(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="../checkpoints/llavamed-sft-ecg")
-    parser.add_argument("--model-base", type=str, default=None)
-    parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder")
+    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v4-336-3lead")
+    parser.add_argument("--model-base", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RLHF-7b-v1.5-224/sft_model")
+    parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder_3lead")
     parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/eval_single_qa.json")
-    parser.add_argument("--answers-file", type=str, default="./table/answer/llava-med_single_answer.jsonl")
+    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/sft-3lead_sqa.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
@@ -195,10 +191,10 @@ if __name__ == "__main__":
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--lora-path", type=str, default=None)
-    parser.add_argument("--short_eval", type=bool, default=True)
+    parser.add_argument("--short_eval", type=bool, default=False)
     parser.add_argument("--image_aspect_ratio", type=str, default="pad")
     parser.add_argument("--test-prompt", type=str, default=None)
-    args, unknown = parser.parse_known_args()
+    args = parser.parse_args()
 
     if os.path.exists(args.answers_file):
         print(f"{args.answers_file} already exists. Please delete it first.")

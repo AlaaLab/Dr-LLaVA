@@ -4,11 +4,8 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import models, transforms
-import wandb
 import lightning as L
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.utilities import rank_zero_only
+from tqdm import tqdm
 from torchmetrics.functional.classification import auroc
 from PIL import Image
 
@@ -68,29 +65,29 @@ class ResNet(L.LightningModule):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--label_column', type=str, default='st_elevation')
+    parser.add_argument('--checkpoint', type=str)
+    parser.add_argument('--label_column', type=str)
+    parser.add_argument('--output_file', type=str)
     args = parser.parse_args()
 
     batch_size = 64
 
-    # initialise the wandb logger and name your wandb project
-    wandb_logger = WandbLogger(project='Dr-LLaVA')
-
-    model = ResNet()
+    model = ResNet.load_from_checkpoint(args.checkpoint)
 
     # Create Dataset and DataLoader for training and validation 
-    train_dataset = ImageDataset('../data/train_resnet_df.csv', '../data/image_folder', label_column=args.label_column)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=4, shuffle=True, pin_memory=True)
+    dataset = ImageDataset('../data/mimic-acute-mi_modelling.csv', '../data/image_folder', label_column=args.label_column)
+    dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=4, pin_memory=True)
 
-    test_dataset = ImageDataset('../data/test_resnet_df.csv', '../data/image_folder', label_column=args.label_column)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, num_workers=4, shuffle=False, pin_memory=True)
+    trainer = L.Trainer()
+    trainer.validate(model, dataloader, verbose=True)
 
-    checkpoint_callback = ModelCheckpoint(monitor="val_loss", dirpath='checkpoints/'+args.label_column)
-    trainer = L.Trainer(max_epochs=50, accelerator="auto", logger=wandb_logger, callbacks=[checkpoint_callback])
-    trainer.fit(model, train_dataloader, test_dataloader)
+    model.eval().cuda()
+    results = []
+    for batch in tqdm(dataloader):
+        with torch.no_grad():
+            x, y = batch
+            y_hat = model(x.cuda())
+            results.extend(y_hat.flatten().tolist())
 
-    if trainer.global_rank == 0:
-        wandb_logger.experiment.config.update({
-            "batch_size": batch_size,
-            "label_column": args.label_column,
-        })
+    with open(args.output_file, 'w') as f:
+        f.writelines([ f"{y}\n" for y in results ])
