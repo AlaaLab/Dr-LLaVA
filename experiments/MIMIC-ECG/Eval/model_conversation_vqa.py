@@ -172,10 +172,6 @@ def eval_model(args):
                 output_ids[:, input_token_len:], skip_special_tokens=True
             )[0]
             outputs = outputs.strip()
-            if outputs.endswith(stop_str):
-                outputs = outputs[: -len(stop_str)]
-            
-            outputs = outputs#.strip()
             conv.messages[-1][-1] = outputs
 
             ans_id = shortuuid.uuid()
@@ -198,11 +194,11 @@ def eval_model(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v0")
+    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v4-336-clean-with-preds")
     parser.add_argument("--model-base", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RLHF-7b-v1.5-224/sft_model")
-    parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder")
-    parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/eval.json")
-    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/rlhf-v5-ckpt-50_conversation.jsonl")
+    parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder_clean")
+    parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/test_conversations_with_preds.json")
+    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/sft-v4_conversation.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
