@@ -19,10 +19,10 @@ module load cuda/11.5
 conda activate LLM_env
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json"
+export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations_with_preds.json"
 export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints" #"/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints"
 export PYTHONPATH="$PWD:$PYTHONPATH"
-export GPUS_PER_NODE=3
+export GPUS_PER_NODE=4
 export OMP_NUM_THREADS=8
 export TRANSFORMERS_OFFLINE=1
 
@@ -30,11 +30,11 @@ export TRANSFORMERS_OFFLINE=1
 POLICY_BASE_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 RM_BASE_MODEL_NAME=LLaVA-RLHF-13b-v1.5-336/sft_model
 
-POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v0/lora_default
+POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v5-336-clean-with-preds/lora_default
 RM_LORA=LLaVA-Fact-RM-13b-v1.5-336-lora-padding/checkpoint-200
 
 # SAVE CONFIG
-MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-v0
+MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-336-with-preds-v5
 
 # TRAINING CONFIG
 LEARNING_RATE=3e-5
@@ -42,9 +42,9 @@ KL_COEF=0.1
 EPOCH=4
 ROLLOUT_BATCH_SIZE=512
 STEP_BATCH_SZIE=256
-ROLLOUT_PER_DEVICE_BATCH_SIZE=32
-REWARD_MODEL_PER_DEVICE_BATCH_SIZE=8
-STEP_PER_DEVICE_BATCH_SIZE=8
+ROLLOUT_PER_DEVICE_BATCH_SIZE=64
+REWARD_MODEL_PER_DEVICE_BATCH_SIZE=16
+STEP_PER_DEVICE_BATCH_SIZE=16
 NOPTEPOCHS=2
 
 # FACT-RLHF CONFIG
@@ -71,7 +71,7 @@ torchrun \
     --learning_rate $LEARNING_RATE \
     --init_value_with_reward True \
     --warmup_steps 5 \
-    --dataset_path "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json" \
+    --dataset_path "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations_with_preds.json" \
     --train_splits "train" \
     --output_dir "$MODEL_DIR/$MODEL_NAME" \
     --total_epochs $EPOCH \
@@ -103,7 +103,7 @@ torchrun \
     --query_len 256 \
     --response_len 768 \
     --noptepochs $NOPTEPOCHS \
-    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder" \
+    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder_clean" \
     --vision_tower different \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \

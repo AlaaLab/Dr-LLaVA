@@ -1,4 +1,12 @@
 #!/bin/bash
+#$ -cwd                    # Use the current working directory
+#$ -j yes                   # Use the current working directory
+#$ -q gpu.q
+#$ -pe smp 3               # slots (threads)
+#$ -l gpu_mem=42G        # Gigabytes of memory per thread (total 20 * 10G = 200 G)
+#$ -R y
+#$ -V
+#$ -l h_rt=100:50:00        # job time
 
 export PATH=$PATH:[PATH_TO_CONDA_ENV]/bin
 export PATH=$PATH:~/miniconda3/envs/LLM_env/bin
@@ -11,8 +19,8 @@ module load cuda/11.5
 conda activate LLM_env
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data"
-export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints"
+export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json"
+export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints" #"/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints" 
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export GPUS_PER_NODE=4
 export OMP_NUM_THREADS=8
@@ -22,21 +30,21 @@ export TRANSFORMERS_OFFLINE=1
 POLICY_BASE_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 RM_BASE_MODEL_NAME=LLaVA-RLHF-13b-v1.5-336/sft_model
 
-POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v2/lora_default
+POLICY_LORA=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-v5/checkpoint-50/adapter_model/lora_policy
 RM_LORA=LLaVA-Fact-RM-13b-v1.5-336-lora-padding/checkpoint-200
 
 # SAVE CONFIG
-MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-lora-padding-ECG-with-preds-v6_2
+MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-v5
 
 # TRAINING CONFIG
 LEARNING_RATE=3e-5
 KL_COEF=0.1
-EPOCH=3
-ROLLOUT_BATCH_SIZE=256
-STEP_BATCH_SZIE=128
-ROLLOUT_PER_DEVICE_BATCH_SIZE=16
-REWARD_MODEL_PER_DEVICE_BATCH_SIZE=8
-STEP_PER_DEVICE_BATCH_SIZE=8
+EPOCH=2
+ROLLOUT_BATCH_SIZE=240
+STEP_BATCH_SIZE=120
+ROLLOUT_PER_DEVICE_BATCH_SIZE=40
+REWARD_MODEL_PER_DEVICE_BATCH_SIZE=10
+STEP_PER_DEVICE_BATCH_SIZE=10
 NOPTEPOCHS=2
 GRAD_ACCUMULATION=1
 
@@ -52,7 +60,7 @@ torchrun \
     finetune_lora_ppo.py \
     --do_train \
     --seed 42 \
-    --step_batch_size $STEP_BATCH_SZIE \
+    --step_batch_size $STEP_BATCH_SIZE \
     --step_per_device_batch_size $STEP_PER_DEVICE_BATCH_SIZE \
     --rollout_batch_size $ROLLOUT_BATCH_SIZE \
     --rollout_per_device_batch_size $ROLLOUT_PER_DEVICE_BATCH_SIZE \
@@ -93,10 +101,10 @@ torchrun \
     --temperature 1.0 \
     --whiten_rewards True \
     --model_max_length 2048 \
-    --query_len 768 \
-    --response_len 768 \
+    --query_len 256 \
+    --response_len 896 \
     --noptepochs $NOPTEPOCHS \
-    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder_clean" \
+    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder" \
     --vision_tower different \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \

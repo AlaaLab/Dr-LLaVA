@@ -481,13 +481,13 @@ class RewardModel_ACS:
     def _check_st_elevation(self, sentences):
         sentences = sentences.lower()
         if exist_in_sentence(
-            sentences, ["yes", "indeed", "shows", "indicate", "evidence", "present"]
+            sentences, ["yes", "indicate", "evidence", "present"]
         ) and no_exist_in_sentence(
             sentences, [" not ", " no "]
         ):
             return True
         elif exist_in_sentence(
-            sentences, ["cannot", "not", "no"]
+            sentences, ["not visible", "does not show", "does not indicate", "cannot", "not present", "no"]
         ):
             return False
         else:
@@ -502,7 +502,7 @@ class RewardModel_ACS:
         ):
             return True
         elif exist_in_sentence(
-            sentences, ["cannot", "not", "no"]
+            sentences, ["not visible", "does not show", "does not indicate", "cannot", "not present", "no"]
         ):
             return False
         else:
@@ -511,13 +511,13 @@ class RewardModel_ACS:
     def _ordering_troponin_test(self, sentences):
         sentences = sentences.lower()
         if exist_in_sentence(
-            sentences, ["yes", "indeed", "should", "ordering", "necessary", "advis"]
+            sentences, ["yes", "it is necessary to order", "it is advisable to order"]
         ) and no_exist_in_sentence(
             sentences, [" not ", " no "]
         ):
             return True
         elif exist_in_sentence(
-            sentences, ["cannot", "not", "no", "unnecessary"]
+            sentences, ["not order", "no", "unnecessary"]
         ):
             return False
         else:
@@ -528,13 +528,13 @@ class RewardModel_ACS:
         if exist_in_sentence(
             sentences, ["stemi", 'st elevation myocardial infarction']
          ) and no_exist_in_sentence(
-            sentences, [" not ", " no ", " absen"]
+            sentences, [" not ", " no ", " absent"]
          ) or (exist_in_sentence(
             sentences, ['myocardial infarction', 'heart attack', 'acute mi', 'mi', 'acs', 'acute coronary syndrome']
          ) and exist_in_sentence(
             sentences, ['st elevation', 'ste']
          ) and no_exist_in_sentence(
-            sentences, [" not ", " no ", " absen"]
+            sentences, [" not ", " no ", " absent"]
          )):
             return "stemi"
         elif exist_in_sentence(
@@ -585,19 +585,26 @@ class RewardModel_ACS:
             gt_result = method(ref_answer)
             gt.append(gt_result)
 
+        
         correct_bonus = [
-            2 if x == y else -1.5 if x == "no match" else -0.5
+            1 if x == y else -1 if x == "no match" else 0
             for x, y in zip(outcomes, gt)
         ]
 
         diagnosis_bonus = 0
         if gt[-1] in ["stemi", "nstemi"]:
             if outcomes[-1] == gt[-1]:
-                diagnosis_bonus += 8
+                diagnosis_bonus += 2
             else:
-                diagnosis_bonus -= 2
+                diagnosis_bonus -= 1
 
-        correct_bonus[-1] = correct_bonus[-1] + diagnosis_bonus
+        lab_bonus = 0
+        if outcomes[-2] == True and gt[-1] in ["stemi", "nstemi"]:
+            lab_bonus += 1
+        elif outcomes[-2] == True and gt[-1] in ["normal"] and gt[-3] == False and gt[-4] == False:
+            lab_bonus -= 1
+
+        correct_bonus[-1] = correct_bonus[-1] + diagnosis_bonus + lab_bonus
 
         align_bonus = []
         # print(f'sentences length: {len(sentences)} and sentences content {sentences}')
@@ -607,9 +614,9 @@ class RewardModel_ACS:
         if len(outcomes) > 0:
             if outcomes[-1] in ["stemi", "nstemi", "normal"]:
                 if (outcomes[-1] == "stemi") and (outcomes[0] == True):
-                    align_bonus.append(10)
+                    align_bonus.append(5)
                 elif (outcomes[-1] == "nstemi") and (outcomes[0] == False):
-                    align_bonus.append(10)
+                    align_bonus.append(5)
                 else:
                     align_bonus.append(0)
 
@@ -641,11 +648,17 @@ class RewardModel_ACS:
         for ref_answer, category in zip(ref_answers, categories):
             gt_answers.append(ref_answer)
 
+        print(f"model_answers: {model_answers}")
+        print(f"gt_answers: {gt_answers}")
+        print(f"length: {len(categories)}")    
+        print(f"outcomes: {outcomes}")
+        print(f"gt: {gt}")
+
         # length_bonus is calculated if the length of the outcomes is the same as the length of the ref_answers has more than 10 letters difference
         length_bonus = [
             max(-abs(len(x) - len(y)) / 25
-                if (abs(len(x) - len(y)) / 25) > 1
-                else 0, -0.5)
+                if abs(len(x) - len(y)) > 10 
+                else 0, -2)
             for x, y in zip(model_answers, gt_answers)
         ]
         # calculate the total bonus
@@ -654,6 +667,14 @@ class RewardModel_ACS:
         align_bonus = torch.tensor(sum(align_bonus)).to(device)
         bonus = correct_bonus + self.align_lambda*align_bonus + length_bonus
         bonus = bonus.unsqueeze(0).unsqueeze(1)
+
+        print('bonuses')
+        print(correct_bonus)
+        print(diagnosis_bonus)
+        print(lab_bonus)
+        print(align_bonus)
+        print(length_bonus)
+        
         return RewardModelOutput(rewards=bonus) if return_dict else (None,)
 
 

@@ -422,6 +422,8 @@ class PPOTrainer(RLTrainer):
                 symbolic_rm = make_symbolic_rm()
 
                 for sub_batch_idx in range(batch_size_per_device):
+                    print(f'full textresponse sequence \n {text_responses[sub_batch_idx]}')
+
                     _answer = answers[sub_batch_idx : sub_batch_idx + 1][0]
 
                     prediction = []
@@ -438,8 +440,8 @@ class PPOTrainer(RLTrainer):
                         except Exception as e:
                             prediction.append('garbage')
                             error = 1
-                            #print('bad sequence')
-                            #print(f"An error occurred: {e} || Index {i} || text_responses sub_batch_idx was {text_responses[sub_batch_idx]}")
+                            print('bad sequence')
+                            # print(f"An error occurred: {e} || Index {i} || text_responses sub_batch_idx was {text_responses[sub_batch_idx]}")
                              
                             
                     # if error == 0:
