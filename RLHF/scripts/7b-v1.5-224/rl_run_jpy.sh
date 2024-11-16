@@ -22,11 +22,11 @@ export TRANSFORMERS_OFFLINE=1
 POLICY_BASE_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 RM_BASE_MODEL_NAME=LLaVA-RLHF-13b-v1.5-336/sft_model
 
-POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v2/lora_default
+POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v7-simple/lora_default
 RM_LORA=LLaVA-Fact-RM-13b-v1.5-336-lora-padding/checkpoint-200
 
 # SAVE CONFIG
-MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-lora-padding-ECG-with-preds-v6_2
+MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-lora-padding-ECG-v7_3
 
 # TRAINING CONFIG
 LEARNING_RATE=3e-5
@@ -64,7 +64,7 @@ torchrun \
     --learning_rate $LEARNING_RATE \
     --init_value_with_reward True \
     --warmup_steps 5 \
-    --dataset_path "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json" \
+    --dataset_path "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations_simple.json" \
     --train_splits "train" \
     --output_dir "$MODEL_DIR/$MODEL_NAME" \
     --total_epochs $EPOCH \
@@ -93,8 +93,8 @@ torchrun \
     --temperature 1.0 \
     --whiten_rewards True \
     --model_max_length 2048 \
-    --query_len 768 \
-    --response_len 768 \
+    --query_len 256 \
+    --response_len 796 \
     --noptepochs $NOPTEPOCHS \
     --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder_clean" \
     --vision_tower different \
@@ -102,5 +102,5 @@ torchrun \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --freeze_mm_mlp_adapter True \
-    --reward_prompt_file "./prompts/fact_rlhf_reward_prompt.txt" \
+    --reward_prompt_file "./prompts/test_prompt.txt" \
     --image_aspect_ratio 'pad'
