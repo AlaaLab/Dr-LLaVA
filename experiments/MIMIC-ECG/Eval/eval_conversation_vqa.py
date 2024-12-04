@@ -123,7 +123,7 @@ if __name__ == "__main__":
     args = get_args()
 
     base_dir = args.base_dir
-    problems = json.load(open(os.path.join(base_dir, "test_conversations.json")))
+    problems = json.load(open(os.path.join(base_dir, "/home/mac/wday/Dr-LLaVA/data/test_conversations_with_preds_simple.json")))
     predictions = [json.loads(line) for line in open(args.result_file)]
 
     y_pred = []
@@ -139,14 +139,6 @@ if __name__ == "__main__":
             rm._ordering_troponin_test(preds[2]['text']),
             rm._diagnosis(preds[3]['text']),
         ])
-
-        # pred_diagnose = 'normal'
-        # if preds[3]['text'] == 'Yes':
-        #     if rm._check_st_elevation(preds[0]['text']):
-        #         pred_diagnose = 'stemi'
-        #     else:
-        #         pred_diagnose = 'nstemi'
-        # y_pred[-1][-1] = pred_diagnose
 
         y_true.append([
             rm._check_st_elevation(convs[1]['value']),

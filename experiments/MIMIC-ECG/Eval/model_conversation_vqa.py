@@ -31,18 +31,6 @@ from transformers import (
     BitsAndBytesConfig,
 )
 
-
-def split_list(lst, n):
-    """Split a list into n (roughly) equal-sized chunks"""
-    chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
-
-
-def get_chunk(lst, n, k):
-    chunks = split_list(lst, n)
-    return chunks[k]
-
-
 def eval_model(args):
     # Model
     disable_torch_init()
@@ -60,10 +48,8 @@ def eval_model(args):
             args.lora_path,
         )
 
-    questions = [
-        json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")
-    ]
-    questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
+    with open(os.path.expanduser(args.question_file)) as q:
+        questions = json.load(q)
     answers_file = os.path.expanduser(args.answers_file)
     
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
@@ -73,17 +59,16 @@ def eval_model(args):
     length = len(questions)
     
     num_images = int(length/4)
-    questions = [questions[4*x:4*(x+1)] for x in range(num_images)]
     
-    for line_chunks in tqdm(questions):
-        assert len(line_chunks)==4, 'this number should be 4'
+    for chunk in tqdm(questions):
+        conversations = [ chunk['conversations'][i*2] for i in range(4) ]
+        assert len(conversations), 'this number should be 4'
         conv = conv_templates[args.conv_mode].copy()
 
-        for p, line in enumerate(line_chunks):
-            idx = line["question_id"]
-            image_file = line["image"]
-            # image_file = 'COCO_val2014_' + image_file
-            qs = line["text"]
+        for p, line in enumerate(conversations):
+            idx = chunk["id"]
+            image_file = chunk["image"]
+            qs = line["value"]
             cur_prompt = qs.split('. ')[-1]
             if model.config.mm_use_im_start_end:
                 qs = (
@@ -94,10 +79,7 @@ def eval_model(args):
                     + qs
                 )
             else:
-                if p ==0:
-                    qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
-                else:
-                    qs = qs
+                qs = qs
             if args.test_prompt:
                 qs += args.test_prompt
             
@@ -145,7 +127,7 @@ def eval_model(args):
             stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
             model.config.use_cache = True
-            model.config.cache_shape = (2048,)
+            model.config.cache_shape = (4096,)
             with torch.inference_mode():
                 output_ids = model.generate(
                     input_ids=input_ids,
@@ -194,11 +176,11 @@ def eval_model(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v4-336-clean-with-preds")
+    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v7-simple-with-preds")
     parser.add_argument("--model-base", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RLHF-7b-v1.5-224/sft_model")
     parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder_clean")
-    parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/test_conversations_with_preds.json")
-    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/sft-v4_conversation.jsonl")
+    parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/test_conversations_with_preds_simple.json")
+    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/sft-v7_conversation.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)

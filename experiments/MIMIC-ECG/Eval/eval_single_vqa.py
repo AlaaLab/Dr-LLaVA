@@ -119,28 +119,29 @@ if __name__ == "__main__":
     args = get_args()
 
     base_dir = args.base_dir
-    problems = json.load(open(os.path.join(base_dir, "test_conversations_single_qa.json")))
-    predictions = [json.loads(line) for line in open(args.result_file)]
-    predictions = {pred['question_id']: pred for pred in predictions}
+    problems = json.load(open(os.path.join(base_dir, "/home/mac/wday/Dr-LLaVA/data/test_conversations_with_preds_simple.json")))
+    
+    predictions = {}
+    for line in open(args.result_file):
+        pred = json.loads(line)
+        if pred['question_id'] not in predictions:
+            predictions[pred['question_id']] = []
+        predictions[pred['question_id']].append(pred['text'])
 
     y_pred = []
     y_true = []
 
-    for idx, prob in enumerate(problems):
+    for prob in problems:
+        conv = prob['conversations']
         pred = predictions[prob['id']]
-        pid = idx % 4
 
-        if pid == 0:
-            y_pred.append(rm._check_st_elevation(pred['text']))
-            y_true.append(rm._check_st_elevation(prob['conversations'][1]['value']))
-        if pid == 1:
-            y_pred.append(rm._check_st_depression_or_t_wave(pred['text']))
-            y_true.append(rm._check_st_depression_or_t_wave(prob['conversations'][1]['value']))
-        if pid == 2:
-            y_pred.append(rm._ordering_troponin_test(pred['text']))
-            y_true.append(rm._ordering_troponin_test(prob['conversations'][1]['value']))
-        if pid == 3:
-            y_pred.append(rm._diagnosis(pred['text']))
-            y_true.append(rm._diagnosis(prob['conversations'][1]['value']))
+        y_pred.append(rm._check_st_elevation(pred[0]))
+        y_true.append(rm._check_st_elevation(conv[1]['value']))
+        y_pred.append(rm._check_st_depression_or_t_wave(pred[1]))
+        y_true.append(rm._check_st_depression_or_t_wave(conv[3]['value']))
+        y_pred.append(rm._ordering_troponin_test(pred[2]))
+        y_true.append(rm._ordering_troponin_test(conv[5]['value']))
+        y_pred.append(rm._diagnosis(pred[3]))
+        y_true.append(rm._diagnosis(conv[7]['value']))
 
     print('accuracy: {}'.format(accuracy_score(y_true, y_pred)))

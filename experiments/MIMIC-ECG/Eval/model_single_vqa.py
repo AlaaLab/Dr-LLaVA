@@ -31,18 +31,6 @@ from transformers import (
     BitsAndBytesConfig,
 )
 
-
-def split_list(lst, n):
-    """Split a list into n (roughly) equal-sized chunks"""
-    chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
-
-
-def get_chunk(lst, n, k):
-    chunks = split_list(lst, n)
-    return chunks[k]
-
-
 def eval_model(args):
     # Model
     disable_torch_init()
@@ -60,130 +48,131 @@ def eval_model(args):
             args.lora_path,
         )
 
-    questions = [
-        json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")
-    ]
-    questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
+    with open(os.path.expanduser(args.question_file)) as q:
+        questions = json.load(q)
     answers_file = os.path.expanduser(args.answers_file)
     
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
     # 
-    for line in tqdm(questions):
-        idx = line["question_id"]
-        image_file = line["image"]
-        # image_file = 'COCO_val2014_' + image_file
-        qs = line["text"]
-        cur_prompt = qs.split('. ')[-1]
-        if model.config.mm_use_im_start_end:
-            qs = (
-                DEFAULT_IM_START_TOKEN
-                + DEFAULT_IMAGE_TOKEN
-                + DEFAULT_IM_END_TOKEN
+    for chunk in tqdm(questions):
+        conversations = [ chunk['conversations'][i*2] for i in range(4) ]
+        assert len(conversations), 'this number should be 4'
+
+        for line in conversations:
+            idx = chunk["id"]
+            image_file = chunk["image"]
+            qs = line["value"]
+            cur_prompt = qs.split('. ')[-1]
+            # if model.config.mm_use_im_start_end:
+            #     qs = (
+            #         DEFAULT_IM_START_TOKEN
+            #         + DEFAULT_IMAGE_TOKEN
+            #         + DEFAULT_IM_END_TOKEN
+            #         + "\n"
+            #         + qs
+            #     )
+            # else:
+            #     qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
+            if args.test_prompt:
+                qs += args.test_prompt
+            conv = conv_templates[args.conv_mode].copy()
+            conv.append_message(conv.roles[0], qs)
+            conv.append_message(conv.roles[1], None)
+            prompt = conv.get_prompt()
+
+            input_ids = (
+                tokenizer_image_token(
+                    prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+                )
+                .unsqueeze(0)
+                .cuda()
+            )
+
+            image = Image.open(os.path.join(args.image_folder, image_file))
+            if args.image_aspect_ratio == "pad":
+                image = image.convert("RGB")
+
+                def expand2square(pil_img, background_color):
+                    # print(background_color)
+                    width, height = pil_img.size
+                    if width == height:
+                        return pil_img
+                    elif width > height:
+                        result = Image.new(pil_img.mode, (width, width), background_color)
+                        result.paste(pil_img, (0, (width - height) // 2))
+                        return result
+                    else:
+                        result = Image.new(pil_img.mode, (height, height), background_color)
+                        result.paste(pil_img, ((height - width) // 2, 0))
+                        return result
+
+                image = expand2square(
+                    image, tuple(int(x * 255) for x in image_processor.image_mean)
+                )
+            image_tensor = image_processor.preprocess(image, return_tensors="pt")[
+                "pixel_values"
+            ][0]
+
+            stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+            keywords = [stop_str]
+            stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
+
+            model.config.use_cache = True
+            model.config.cache_shape = (2048,)
+            with torch.inference_mode():
+                output_ids = model.generate(
+                    input_ids=input_ids,
+                    images=image_tensor.unsqueeze(0).to(dtype=compute_dtype).cuda(),
+                    do_sample=True if args.temperature > 0 else False,
+                    temperature=args.temperature if args.temperature > 0 else 1.0,
+                    top_p=args.top_p,
+                    num_beams=args.num_beams,
+                    # no_repeat_ngram_size=3,
+                    max_new_tokens=64 if args.short_eval else 1024,
+                    stopping_criteria=[stopping_criteria],
+                    use_cache=True,
+                )
+
+            input_token_len = input_ids.shape[1]
+            n_diff_input_output = (
+                (input_ids != output_ids[:, :input_token_len]).sum().item()
+            )
+            if n_diff_input_output > 0:
+                print(
+                    f"[Warning] {n_diff_input_output} output_ids are not the same as the input_ids"
+                )
+            outputs = tokenizer.batch_decode(
+                output_ids[:, input_token_len:], skip_special_tokens=True
+            )[0]
+            outputs = outputs.strip()
+            conv.messages[-1][-1] = outputs
+
+            ans_id = shortuuid.uuid()
+            ans_file.write(
+                json.dumps(
+                    {
+                        "question_id": idx,
+                        "prompt": cur_prompt,
+                        "text": outputs,
+                        "answer_id": ans_id,
+                        "model_id": model_name,
+                        "metadata": {},
+                    }
+                )
                 + "\n"
-                + qs
             )
-        else:
-            qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
-        if args.test_prompt:
-            qs += args.test_prompt
-        conv = conv_templates[args.conv_mode].copy()
-        conv.append_message(conv.roles[0], qs)
-        conv.append_message(conv.roles[1], None)
-        prompt = conv.get_prompt()
-
-        input_ids = (
-            tokenizer_image_token(
-                prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
-            )
-            .unsqueeze(0)
-            .cuda()
-        )
-
-        image = Image.open(os.path.join(args.image_folder, image_file))
-        if args.image_aspect_ratio == "pad":
-            image = image.convert("RGB")
-
-            def expand2square(pil_img, background_color):
-                # print(background_color)
-                width, height = pil_img.size
-                if width == height:
-                    return pil_img
-                elif width > height:
-                    result = Image.new(pil_img.mode, (width, width), background_color)
-                    result.paste(pil_img, (0, (width - height) // 2))
-                    return result
-                else:
-                    result = Image.new(pil_img.mode, (height, height), background_color)
-                    result.paste(pil_img, ((height - width) // 2, 0))
-                    return result
-
-            image = expand2square(
-                image, tuple(int(x * 255) for x in image_processor.image_mean)
-            )
-        image_tensor = image_processor.preprocess(image, return_tensors="pt")[
-            "pixel_values"
-        ][0]
-
-        stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
-        keywords = [stop_str]
-        stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
-
-        model.config.use_cache = True
-        model.config.cache_shape = (2048,)
-        with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids=input_ids,
-                images=image_tensor.unsqueeze(0).to(dtype=compute_dtype).cuda(),
-                do_sample=True if args.temperature > 0 else False,
-                temperature=args.temperature if args.temperature > 0 else 1.0,
-                top_p=args.top_p,
-                num_beams=args.num_beams,
-                # no_repeat_ngram_size=3,
-                max_new_tokens=64 if args.short_eval else 1024,
-                stopping_criteria=[stopping_criteria],
-                use_cache=True,
-            )
-
-        input_token_len = input_ids.shape[1]
-        n_diff_input_output = (
-            (input_ids != output_ids[:, :input_token_len]).sum().item()
-        )
-        if n_diff_input_output > 0:
-            print(
-                f"[Warning] {n_diff_input_output} output_ids are not the same as the input_ids"
-            )
-        outputs = tokenizer.batch_decode(
-            output_ids[:, input_token_len:], skip_special_tokens=True
-        )[0]
-        outputs = outputs.strip()
-        conv.messages[-1][-1] = outputs
-
-        ans_id = shortuuid.uuid()
-        ans_file.write(
-            json.dumps(
-                {
-                    "question_id": idx,
-                    "prompt": cur_prompt,
-                    "text": outputs,
-                    "answer_id": ans_id,
-                    "model_id": model_name,
-                    "metadata": {},
-                }
-            )
-            + "\n"
-        )
-        ans_file.flush()
+            ans_file.flush()
     ans_file.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v4-336-3lead")
+    parser.add_argument("--model-path", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v7-simple-with-preds")
     parser.add_argument("--model-base", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/checkpoints/LLaVA-RLHF-7b-v1.5-224/sft_model")
-    parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder_3lead")
-    parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/eval_single_qa.json")
-    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/sft-3lead_sqa.jsonl")
+    parser.add_argument("--image-folder", type=str, default="/home/mac/wday/Dr-LLaVA/data/image_folder_clean")
+    parser.add_argument("--question-file", type=str, default="/home/mac/wday/Dr-LLaVA/data/test_conversations_with_preds_simple.json")
+    parser.add_argument("--answers-file", type=str, default="/home/mac/wday/Dr-LLaVA/experiments/MIMIC-ECG/Eval/table/answer/sft-v7_sqa.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)

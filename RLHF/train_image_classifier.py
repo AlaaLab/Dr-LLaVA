@@ -1,8 +1,9 @@
 from argparse import ArgumentParser
+from collections import Counter
 import os
 import pandas as pd
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import models, transforms
 import wandb
 import lightning as L
@@ -34,12 +35,25 @@ class ImageDataset(Dataset):
             image = self.transform(image)
         return image, torch.tensor(label, dtype=torch.float32)
 
-# Load ResNet model
-class ResNet(L.LightningModule):
-    def __init__(self):
+class ClassifierModel(L.LightningModule):
+    def __init__(self, model: str, freeze_encoder: bool):
         super().__init__()
-        self.model = models.resnet18(pretrained=True)
-        self.model.fc = torch.nn.Linear(self.model.fc.in_features, 1)  # Single label output for binary classification
+        if model == 'resnet':
+            self.model = models.resnet50(pretrained=True)
+        elif model == 'vit':
+            self.model = models.vit_l_16(pretrained=True)
+        else:
+            raise ValueError('Model must be reset or vit.')
+
+        if freeze_encoder:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+        if model == 'resnet':
+            self.model.fc = torch.nn.Linear(self.model.fc.in_features, 1)
+        if model == 'vit':
+            self.model.heads.head = torch.nn.Linear(self.model.heads.head.in_features, 1)
+
         self.loss_fn = torch.nn.BCEWithLogitsLoss()
 
     def forward(self, x):
@@ -63,34 +77,39 @@ class ResNet(L.LightningModule):
         self.log("val_auroc", auroc(outputs, labels.int(), task='binary'), sync_dist=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=3e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--label_column', type=str, default='st_elevation')
+    parser.add_argument('--model', type=str)
+    parser.add_argument('--label_column', type=str)
+    parser.add_argument('--freeze-encoder', type=bool)
+    parser.add_argument('--balance-training', type=bool)
     args = parser.parse_args()
 
-    batch_size = 64
+    batch_size = 48
 
     # initialise the wandb logger and name your wandb project
     wandb_logger = WandbLogger(project='Dr-LLaVA')
 
-    model = ResNet()
+    model = ClassifierModel(model=args.model, freeze_encoder=args.freeze_encoder)
 
     # Create Dataset and DataLoader for training and validation 
-    train_dataset = ImageDataset('../data/train_resnet_df.csv', '../data/image_folder', label_column=args.label_column)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=4, shuffle=True, pin_memory=True)
+    train_dataset = ImageDataset('../data/train_downsampled_df.csv', '../data/image_folder_clean', label_column=args.label_column)
+    if args.balance_training:
+        class_cnts = Counter(train_dataset.df[train_dataset.label_column].tolist())
+        weigths = [ class_cnts.total() / class_cnts[i] for i in train_dataset.df[train_dataset.label_column].tolist()]
+        sampler = WeightedRandomSampler(weigths, len(train_dataset.df))
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, num_workers=4)
+    else:
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=4, shuffle=True)
 
-    test_dataset = ImageDataset('../data/test_resnet_df.csv', '../data/image_folder', label_column=args.label_column)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, num_workers=4, shuffle=False, pin_memory=True)
+    test_dataset = ImageDataset('../data/test_downsampled_df.csv', '../data/image_folder_clean', label_column=args.label_column)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, num_workers=4, shuffle=False)
 
-    checkpoint_callback = ModelCheckpoint(monitor="val_loss", dirpath='checkpoints/'+args.label_column)
-    trainer = L.Trainer(max_epochs=50, accelerator="auto", logger=wandb_logger, callbacks=[checkpoint_callback])
+    trainer = L.Trainer(max_epochs=5, accelerator="auto", logger=wandb_logger)
     trainer.fit(model, train_dataloader, test_dataloader)
 
     if trainer.global_rank == 0:
-        wandb_logger.experiment.config.update({
-            "batch_size": batch_size,
-            "label_column": args.label_column,
-        })
+        wandb_logger.experiment.config.update(vars(args))
