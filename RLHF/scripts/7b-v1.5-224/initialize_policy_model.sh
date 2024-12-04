@@ -23,8 +23,8 @@ module load cuda/11.5
 # # conda activate llava
 # # Activate the virtual environment
 conda activate LLM_env
-export CUDA_VISIBLE_DEVICES=0,1
-export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json"
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations_with_preds.json"
 export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints" #"/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints"
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export GPUS_PER_NODE=4
@@ -35,7 +35,7 @@ VISION_TOWER=openai/clip-vit-large-patch14
 LM_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 
 # SAVE CONFIG
-MODEL_NAME=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v2
+MODEL_NAME=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v6-simple-with-preds
 
 # TRAINING CONFIG
 NUM_EPOCHS=4
@@ -53,7 +53,7 @@ deepspeed \
     --per_device_eval_batch_size 8 \
     --gradient_accumulation_steps $GRAD_ACCUMULATION \
     --model_name_or_path $MODEL_DIR/$LM_MODEL_NAME \
-    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder" \
+    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder_clean" \
     --vision_tower $VISION_TOWER \
     --learning_rate $LEARNING_RATE \
     --mm_vision_select_layer -2 \
@@ -62,7 +62,7 @@ deepspeed \
     --freeze_mm_mlp_adapter True \
     --query_len 1280 \
     --response_len 768 \
-    --dataset "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json" \
+    --dataset "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations_with_preds_simple.json" \
     --dataset_format "v1" \
     --eval_size 500 \
     --bits 16 \

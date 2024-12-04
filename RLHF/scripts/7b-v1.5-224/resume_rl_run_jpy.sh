@@ -2,8 +2,8 @@
 #$ -cwd                    # Use the current working directory
 #$ -j yes                   # Use the current working directory
 #$ -q gpu.q
-#$ -pe smp 4               # slots (threads)
-#$ -l gpu_mem=75G        # Gigabytes of memory per thread (total 20 * 10G = 200 G)
+#$ -pe smp 3               # slots (threads)
+#$ -l gpu_mem=42G        # Gigabytes of memory per thread (total 20 * 10G = 200 G)
 #$ -R y
 #$ -V
 #$ -l h_rt=100:50:00        # job time
@@ -19,8 +19,8 @@ module load cuda/11.5
 conda activate LLM_env
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations_with_preds.json"
-export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints" #"/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints"
+export DATA_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json"
+export MODEL_DIR="/wynton/protected/group/ibrahim/alex/Dr-LLaVA/experiments/MIMIC-ECG/LLaVA_checkpoints/LLaVA_checkpoints" #"/wynton/protected/group/ibrahim/harry/LLaVA_checkpoints" 
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export GPUS_PER_NODE=4
 export OMP_NUM_THREADS=8
@@ -30,22 +30,23 @@ export TRANSFORMERS_OFFLINE=1
 POLICY_BASE_MODEL_NAME=LLaVA-RLHF-7b-v1.5-224/sft_model
 RM_BASE_MODEL_NAME=LLaVA-RLHF-13b-v1.5-336/sft_model
 
-POLICY_LORA=LLaVA-RL-INIT-7b-v1.5-224-lora-padding-ECG-v5-336-clean-with-preds/lora_default
+POLICY_LORA=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-v5/checkpoint-50/adapter_model/lora_policy
 RM_LORA=LLaVA-Fact-RM-13b-v1.5-336-lora-padding/checkpoint-200
 
 # SAVE CONFIG
-MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-336-with-preds-v5
+MODEL_NAME=LLaVA-RL-Fact-RLHF-7b-v1.5-224-lora-padding-ECG-v5
 
 # TRAINING CONFIG
 LEARNING_RATE=3e-5
 KL_COEF=0.1
-EPOCH=4
-ROLLOUT_BATCH_SIZE=512
-STEP_BATCH_SZIE=256
-ROLLOUT_PER_DEVICE_BATCH_SIZE=64
-REWARD_MODEL_PER_DEVICE_BATCH_SIZE=16
-STEP_PER_DEVICE_BATCH_SIZE=16
+EPOCH=2
+ROLLOUT_BATCH_SIZE=240
+STEP_BATCH_SIZE=120
+ROLLOUT_PER_DEVICE_BATCH_SIZE=40
+REWARD_MODEL_PER_DEVICE_BATCH_SIZE=10
+STEP_PER_DEVICE_BATCH_SIZE=10
 NOPTEPOCHS=2
+GRAD_ACCUMULATION=1
 
 # FACT-RLHF CONFIG
 INCOMPLETE_RESPONSE=-2.0
@@ -59,7 +60,7 @@ torchrun \
     finetune_lora_ppo.py \
     --do_train \
     --seed 42 \
-    --step_batch_size $STEP_BATCH_SZIE \
+    --step_batch_size $STEP_BATCH_SIZE \
     --step_per_device_batch_size $STEP_PER_DEVICE_BATCH_SIZE \
     --rollout_batch_size $ROLLOUT_BATCH_SIZE \
     --rollout_per_device_batch_size $ROLLOUT_PER_DEVICE_BATCH_SIZE \
@@ -71,7 +72,7 @@ torchrun \
     --learning_rate $LEARNING_RATE \
     --init_value_with_reward True \
     --warmup_steps 5 \
-    --dataset_path "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations_with_preds.json" \
+    --dataset_path "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/train_conversations.json" \
     --train_splits "train" \
     --output_dir "$MODEL_DIR/$MODEL_NAME" \
     --total_epochs $EPOCH \
@@ -101,9 +102,9 @@ torchrun \
     --whiten_rewards True \
     --model_max_length 2048 \
     --query_len 256 \
-    --response_len 768 \
+    --response_len 896 \
     --noptepochs $NOPTEPOCHS \
-    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder_clean" \
+    --image_folder "/wynton/protected/group/ibrahim/alex/Dr-LLaVA/data/image_folder" \
     --vision_tower different \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
